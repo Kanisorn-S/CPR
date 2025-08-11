@@ -1,5 +1,5 @@
 pub mod cell;
-mod grid;
+pub mod grid;
 
 use std::thread::current;
 use cell::Cell;
@@ -34,7 +34,7 @@ impl World {
         let (red_deposit_box, blue_deposit_box) = World::spawn_deposit_box(width, height, &mut grid);
         let robots = Self::spawn_robots(width, height, &mut grid, n_robots);
         Self {
-            grid: Grid::new(grid),
+            grid: Grid::new(grid, width, height),
             robots,
             width,
             height,
@@ -111,7 +111,7 @@ impl World {
         for robot in &mut self.robots {
             let action = robot.make_decision();
             println!("Robot {:?} decided to {:?}", robot, action);
-            robot.take_action(&action, self.width, self.height);
+            robot.take_action(&action, &mut self.grid);
             decisions.push(action);
         }
         decisions

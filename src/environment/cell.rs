@@ -18,12 +18,23 @@ pub struct Cell {
 impl Debug for Cell {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let content = match &self.content {
-            Some(CellContent::GoldBars(n)) => format!(" {} ", n).yellow(),
-            Some(CellContent::DepositBox(Team::Red, n)) => format!("[{}]", n).to_string().red(),
-            Some(CellContent::DepositBox(Team::Blue, n)) => format!("[{}]", n).to_string().blue(),
+            Some(CellContent::GoldBars(n)) => format!(" {} ", n).bright_yellow().italic(),
+            Some(CellContent::DepositBox(Team::Red, n)) => format!("[{}]", n).to_string().red().bold(),
+            Some(CellContent::DepositBox(Team::Blue, n)) => format!("[{}]", n).to_string().blue().bold(),
             None => "   ".to_string().green(),
         };
-        write!(f, "({} {} {})", self.red_robots.to_string().red(), content, self.blue_robots.to_string().blue())
+        let red_robots_string = if self.red_robots > 0 {
+            self.red_robots.to_string().bright_red().bold()
+        } else {
+            self.red_robots.to_string().red().dimmed()
+        };
+        let blue_robots_string = if self.blue_robots > 0 {
+            self.blue_robots.to_string().bright_blue().bold()
+        } else {
+            self.blue_robots.to_string().blue().dimmed()
+        };
+
+        write!(f, "({} {} {})", red_robots_string, content, blue_robots_string)
     }
 }
 impl Cell {
@@ -51,6 +62,14 @@ impl Cell {
         match team {
             Team::Red => self.red_robots += 1,
             Team::Blue => self.blue_robots += 1,
+        }
+    }
+    
+    pub fn remove_bot(&mut self, robot: &Robot) {
+        let team = robot.get_team();
+        match team {
+            Team::Red => self.red_robots -= 1,
+            Team::Blue => self.blue_robots -= 1,
         }
     }
 }

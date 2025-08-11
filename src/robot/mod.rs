@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use crate::util::Coord;
 use colored::Colorize;
-use crate::environment::cell;
+use crate::environment::grid::Grid;
 
 #[derive(Copy, Clone)]
 pub enum Team {
@@ -93,43 +93,51 @@ impl Robot {
     pub fn get_id(&self) -> char {
         self.id
     }
-    
-    pub fn take_action(&mut self, action: &Action, width: u8, height: u8) {
+
+    pub fn take_action(&mut self, action: &Action, grid: &mut Grid) {
         match action {
             Action::Turn(direction) => self.turn(*direction),
-            Action::Move => self.step(width, height),
+            Action::Move => self.step(grid),
             _ => {}
         }
     }
-    
+
     fn turn(&mut self, direction: Direction) {
         self.facing = direction;
     }
-    
-    fn step(&mut self, width: u8, height: u8) {
+
+    fn step(&mut self, grid: &mut Grid) {
         match self.facing {
             Direction::Left => {
                 let current_x = self.current_coord.x;
                 if current_x != 0 {
+                    grid.remove_robot(self, self.current_coord);
                     self.current_coord.x -= 1;
+                    grid.add_robot(self, self.current_coord);
                 }
             },
             Direction::Right => {
                 let current_x = self.current_coord.x;
-                if current_x != width {
+                if current_x != grid.get_width() {
+                    grid.remove_robot(self, self.current_coord);
                     self.current_coord.x += 1;
+                    grid.add_robot(self, self.current_coord);
                 }
             },
             Direction::Up => {
                 let current_y = self.current_coord.y;
-                if current_y != height {
+                if current_y != grid.get_height() {
+                    grid.remove_robot(self, self.current_coord);
                     self.current_coord.y += 1;
+                    grid.add_robot(self, self.current_coord);
                 }
             },
             Direction::Down => {
                 let current_y = self.current_coord.y;
                 if current_y != 0 {
+                    grid.remove_robot(self, self.current_coord);
                     self.current_coord.y -= 1;
+                    grid.add_robot(self, self.current_coord);
                 }
             },
         }

@@ -12,4 +12,5 @@ fn main() {
     let mut world = World::new(WIDTH, HEIGHT, P_GOLD, MAX_GOLD, N_ROBOTS);
     world.print_grid();
     world.make_decisions_and_take_actions();
+    world.print_grid();
 }
