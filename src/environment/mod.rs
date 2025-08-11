@@ -1,6 +1,7 @@
 pub mod cell;
 pub mod grid;
 
+use std::collections::HashMap;
 use std::thread::current;
 use cell::Cell;
 use crate::environment::grid::Grid;
@@ -9,39 +10,45 @@ use crate::robot::{Action, Team};
 use crate::robot::Direction::{Left, Right, Up, Down};
 use crate::robot::Robot;
 use colored::Colorize;
+use crate::robot::manager::RobotManager;
 
 pub struct World {
     grid: Grid,
-    robots: Vec<Robot>,
-    width: u8,
-    height: u8,
+    width: usize,
+    height: usize,
     red_score: u8,
     blue_score: u8,
     red_deposit_box: Coord,
     blue_deposit_box: Coord,
+    pick_up_check: HashMap<Coord, Vec<(char, Team)>>,
+    red_team: RobotManager,
+    blue_team: RobotManager,
 }
 
 impl World {
-    pub fn new(width: u8, height: u8, p_gold: f64, max_gold: u8, n_robots: u8) -> Self {
+    pub fn new(width: usize, height: usize, p_gold: f64, max_gold: u8, n_robots: u8) -> Self {
         let mut grid: Vec<Vec<Cell>> = Vec::new();
-        for y in (0u8..height).rev() {
+        for y in (0..height).rev() {
             let mut row: Vec<Cell> = Vec::new();
-            for x in 0u8..width {
+            for x in 0..width {
                 row.push(Cell::new((x, y), p_gold, max_gold));
             }
             grid.push(row);
         }
-        let (red_deposit_box, blue_deposit_box) = World::spawn_deposit_box(width, height, &mut grid);
-        let robots = Self::spawn_robots(width, height, &mut grid, n_robots);
+        let mut grid = Grid::new(grid, width, height);
+        let (red_deposit_box, blue_deposit_box) = Self::spawn_deposit_box(width, height, &mut grid);
+        let (blue_team, red_team) = Self::spawn_robots(width, height, &mut grid, n_robots);
         Self {
-            grid: Grid::new(grid, width, height),
-            robots,
+            grid,
             width,
             height,
             red_deposit_box,
             blue_deposit_box,
             red_score: 0,
             blue_score: 0,
+            pick_up_check: HashMap::new(),
+            red_team: RobotManager::new(Team::Red, red_team),
+            blue_team: RobotManager::new(Team::Blue, blue_team),
         }
     }
 
@@ -50,15 +57,15 @@ impl World {
         println!("{:?}", self.grid);
     }
 
-    pub fn get_width(&self) -> u8 {
+    pub fn get_width(&self) -> usize {
         self.width
     }
 
-    pub fn get_height(&self) -> u8 {
+    pub fn get_height(&self) -> usize {
         self.height
     }
 
-    fn spawn_deposit_box(width: u8, height: u8, grid: &mut Vec<Vec<Cell>>) -> (Coord, Coord) {
+    fn spawn_deposit_box(width: usize, height: usize, grid: &mut Grid) -> (Coord, Coord) {
         let red_deposit_box = Coord::random(0..width, 0..height);
         let mut blue_deposit_box: Coord;
         loop {
@@ -67,36 +74,35 @@ impl World {
                 break;
             }
         }
-        let Coord { x: x_red, y: y_red } = red_deposit_box;
-        let Coord { x: x_blue, y: y_blue } = blue_deposit_box;
-        grid[(height - 1 - y_red) as usize][x_red as usize].set_deposit_box(Team::Red);
-        grid[(height - 1 - y_blue) as usize][x_blue as usize].set_deposit_box(Team::Blue);
+        grid.get_cell(red_deposit_box).unwrap().set_deposit_box(Team::Red);
+        grid.get_cell(blue_deposit_box).unwrap().set_deposit_box(Team::Blue);
         (red_deposit_box, blue_deposit_box)
     }
 
-    fn spawn_robots(width: u8, height: u8, grid: &mut Vec<Vec<Cell>>, n_robots: u8) -> Vec<Robot> {
-        let mut robots: Vec<Robot> = Vec::new();
+    fn spawn_robots(width: usize, height: usize, grid: &mut Grid, n_robots: u8) -> (HashMap<char, Robot>, HashMap<char, Robot>) {
+        let mut blue_robots: HashMap<char, Robot> = HashMap::new();
+        let mut red_robots: HashMap<char, Robot> = HashMap::new();
         // Blue team robots
         for i in 0..n_robots {
             let id = (b'a' + i) as char;
-            let current_pos = Coord::random(0..width, 0..height);
+            let current_pos = Coord::random(0..1, 0..1);
             let new_robot = Self::create_robot(id, Team::Blue, current_pos, width, height);
-            grid[(height - 1 - current_pos.y) as usize][current_pos.x as usize].add_bot(&new_robot);
-            robots.push(new_robot);
+            grid.get_cell(current_pos).unwrap().add_bot(&new_robot);
+            blue_robots.insert(id, new_robot);
         }
 
         // Red team robots
-        for i in 0..n_robots {
-            let id = (b'A' + i) as char;
-            let current_pos = Coord::random(0..width, 0..height);
-            let new_robot = Self::create_robot(id, Team::Red, current_pos, width, height);
-            grid[(height - 1 - current_pos.y) as usize][current_pos.x as usize].add_bot(&new_robot);
-            robots.push(new_robot);
-        }
-        robots
+        // for i in 0..n_robots {
+        //     let id = (b'A' + i) as char;
+        //     let current_pos = Coord::random(0..width, 0..height);
+        //     let new_robot = Self::create_robot(id, Team::Red, current_pos, width, height);
+        //     grid.get_cell(current_pos).unwrap().add_bot(&new_robot);
+        //     red_robots.insert(id, new_robot);
+        // }
+        (blue_robots , red_robots)
     }
 
-    fn create_robot(id: char, team: Team, current_pos: Coord, width: u8, height: u8) -> Robot {
+    fn create_robot(id: char, team: Team, current_pos: Coord, width: usize, height: usize) -> Robot {
         let facing = match rand::random_range(0..4) {
             0 => Left,
             1 => Right,
@@ -106,14 +112,80 @@ impl World {
         Robot::new(id, team, current_pos, facing)
     }
 
-    pub fn make_decisions_and_take_actions(&mut self) -> Vec<Action> {
-        let mut decisions: Vec<Action> = Vec::new();
-        for robot in &mut self.robots {
-            let action = robot.make_decision();
-            println!("Robot {:?} decided to {:?}", robot, action);
-            robot.take_action(&action, &mut self.grid);
-            decisions.push(action);
+    pub fn make_decisions_and_take_actions(&mut self) {
+        self.pick_up_check.clear();
+        for blue_robot in self.blue_team.get_robots() {
+            let action = blue_robot.make_decision();
+            if let Action::PickUp = action {
+                self.pick_up_check.entry(blue_robot.get_coord()).or_insert(Vec::new()).push((blue_robot.get_id(), Team::Blue));
+            }
+            println!("{} Robot {:?} decided to {:?}", "BLU".blue(), blue_robot, action);
+            blue_robot.take_action(&action, &mut self.grid);
         }
-        decisions
+
+        for red_robot in self.red_team.get_robots() {
+            let action = red_robot.make_decision();
+            if let Action::PickUp = action {
+                self.pick_up_check.entry(red_robot.get_coord()).or_insert(Vec::new()).push((red_robot.get_id(), Team::Red));
+            }
+            println!("{} Robot {:?} decided to {:?}", "RED".red(), red_robot, action);
+            red_robot.take_action(&action, &mut self.grid);
+        }
+
+        self.check_pickup_logic();
+    }
+
+    fn check_pickup_logic(&mut self) {
+        for (coord, robots) in &self.pick_up_check {
+            let gold_bars = self.grid.get_cell(*coord).unwrap().get_gold_amount();
+            match gold_bars {
+                Some(n) => {
+                    if (robots.len() < 2) {
+                        continue;
+                    } else {
+                        let mut reds: Vec<char> = Vec::new();
+                        let mut blues: Vec<char> = Vec::new();
+                        for (id, team) in robots {
+                            match *team {
+                                Team::Red => reds.push(*id),
+                                Team::Blue => blues.push(*id)
+                            }
+                        }
+                        let (red_is_able_to_pick, blue_is_able_to_pick) = Self::teams_that_picks(reds.len(), blues.len(), n);
+                        if red_is_able_to_pick {
+                            let picked = self.red_team.pickup_gold(reds[0], reds[1]);
+                            if picked {
+                                self.grid.get_cell(*coord).unwrap().remove_gold();
+                            }
+                        }
+                        if blue_is_able_to_pick {
+                            let picked = self.blue_team.pickup_gold(blues[0], blues[1]);
+                            if picked {
+                                self.grid.get_cell(*coord).unwrap().remove_gold();
+                            }
+                        }
+                    }
+                },
+                None => continue
+            }
+        }
+    }
+
+    fn is_invalid_pickup(red_robots: usize, blue_robots: usize, golds: u8) -> bool {
+        (red_robots > 2 && blue_robots > 2) ||
+        (red_robots < 2 && blue_robots < 2) ||
+        (red_robots == 2 && blue_robots == 2 && golds < 2)
+    }
+
+    fn teams_that_picks(red_robots: usize, blue_robots: usize, golds: u8) -> (bool, bool) {
+        return if Self::is_invalid_pickup(red_robots, blue_robots, golds) {
+            (false, false)
+        } else {
+            (red_robots == 2, blue_robots == 2)
+        }
+    }
+
+    pub fn print_pickup_check(&self) {
+        println!("Pickup check: {:?}", self.pick_up_check);
     }
 }

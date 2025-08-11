@@ -1,3 +1,5 @@
+pub mod manager;
+
 use std::fmt::{Debug, Formatter};
 use crate::util::Coord;
 use colored::Colorize;
@@ -58,13 +60,29 @@ pub struct Robot {
     team: Team,
     current_coord: Coord,
     facing: Direction,
+    is_carrying: bool,
+    pair_id: Option<char>,
 }
 
 impl Debug for Robot {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.team {
-            Team::Red => write!(f, "{} is at {:?} facing {:?}", self.id.to_string().red(), self.current_coord, self.facing),
-            Team::Blue => write!(f, "{} is at {:?} facing {:?}", self.id.to_string().blue(), self.current_coord, self.facing),
+            Team::Red => {
+                write!(f, "{} is at {:?} facing {:?}", self.id.to_string().red(), self.current_coord, self.facing)?;
+                if self.is_carrying {
+                    write!(f, "{} with {}", "CARRYING".yellow().bold(), self.pair_id.unwrap().to_string().red())
+                } else {
+                    write!(f, "")
+                }
+            },
+            Team::Blue => {
+                write!(f, "{} is at {:?} facing {:?}", self.id.to_string().blue(), self.current_coord, self.facing)?;
+                if self.is_carrying {
+                    write!(f, " is {} with {}", "CARRYING GOLD".yellow().bold(), self.pair_id.unwrap().to_string().blue())
+                } else {
+                    write!(f, "")
+                }
+            },
         }
     }
 }
@@ -72,11 +90,11 @@ impl Debug for Robot {
 impl Robot {
 
     pub fn new(id: char, team: Team, current_coord: Coord, facing: Direction) -> Self {
-        Robot { id, team, current_coord, facing }
+        Robot { id, team, current_coord, facing, is_carrying: false, pair_id: None }
     }
 
     pub fn make_decision(&self) -> Action {
-        match rand::random_range(0..6) {
+        match rand::random_range(5..6) {
             0 => Action::Move,
             1 => Action::Turn(Direction::Left),
             2 => Action::Turn(Direction::Right),
@@ -92,6 +110,10 @@ impl Robot {
 
     pub fn get_id(&self) -> char {
         self.id
+    }
+
+    pub fn get_coord(&self) -> Coord {
+        self.current_coord
     }
 
     pub fn take_action(&mut self, action: &Action, grid: &mut Grid) {
@@ -140,6 +162,16 @@ impl Robot {
                     grid.add_robot(self, self.current_coord);
                 }
             },
+        }
+    }
+
+    pub fn is_carrying(&self) -> bool {
+        self.is_carrying
+    }
+    pub fn pickup(&mut self, pair_id: char) {
+        if !self.is_carrying {
+            self.is_carrying = true;
+            self.pair_id = Some(pair_id);
         }
     }
 }

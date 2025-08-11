@@ -38,7 +38,7 @@ impl Debug for Cell {
     }
 }
 impl Cell {
-    pub fn new(coord: (u8, u8), p_gold: f64, max_gold: u8) -> Self {
+    pub fn new(coord: (usize, usize), p_gold: f64, max_gold: u8) -> Self {
         let contain_gold = rand::random_bool(p_gold);
         let content = if contain_gold {
             Some(CellContent::GoldBars(rand::random_range(1..=max_gold)))
@@ -70,6 +70,21 @@ impl Cell {
         match team {
             Team::Red => self.red_robots -= 1,
             Team::Blue => self.blue_robots -= 1,
+        }
+    }
+    
+    pub fn get_gold_amount(&self) -> Option<u8> {
+        match self.content {
+            Some(CellContent::GoldBars(n)) if n > 0 => Some(n),
+            _ => None,
+        }
+    }
+    
+    pub fn remove_gold(&mut self) {
+        match self.content {
+            Some(CellContent::GoldBars(n)) if n > 1 => self.content = Some(CellContent::GoldBars(n - 1)),
+            Some(CellContent::GoldBars(n)) => self.content = None,
+            _ => ()
         }
     }
 }

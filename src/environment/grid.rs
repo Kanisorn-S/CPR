@@ -6,30 +6,29 @@ use crate::util::Coord;
 
 pub struct Grid {
     grid: Vec<Vec<Cell>>,
-    width: u8,
-    height: u8,
+    width: usize,
+    height: usize,
 }
 
 impl Grid {
-    pub fn new(grid: Vec<Vec<Cell>>, width: u8, height: u8) -> Grid {
+    pub fn new(grid: Vec<Vec<Cell>>, width: usize, height: usize) -> Grid {
         Grid {
             grid,
             width,
             height,
         }
-
     }
 
     pub fn get_grid(&self) -> &Vec<Vec<Cell>> {
         &self.grid
     }
 
-    fn get_cell(&mut self, coord: Coord) -> Option<&mut Cell> {
+    pub fn get_cell(&mut self, coord: Coord) -> Option<&mut Cell> {
         let Coord { x, y } = coord;
-        match self.grid.get(self.height as usize - y as usize - 1) {
+        match self.grid.get(self.height - y - 1) {
             Some(row) => {
-                match row.get(x as usize) {
-                    Some(_) => Some(&mut self.grid[(self.height - y - 1) as usize][x as usize]),
+                match row.get(x) {
+                    Some(_) => Some(&mut self.grid[(self.height - y - 1)][x]),
                     None => None
                 }
             },
@@ -57,10 +56,10 @@ impl Grid {
         }
     }
 
-    pub fn get_width(&self) -> u8 {
+    pub fn get_width(&self) -> usize {
         self.width
     }
-    pub fn get_height(&self) -> u8 {
+    pub fn get_height(&self) -> usize {
         self.height
     }
 }
@@ -68,7 +67,7 @@ impl Grid {
 impl Debug for Grid {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for (index, row) in self.grid.iter().enumerate() {
-            write!(f, " {} ", (self.height - index as u8 - 1).to_string().bold())?;
+            write!(f, " {} ", (self.height - index - 1).to_string().bold())?;
             for cell in row {
                 write!(f, "{:?} ", cell)?;
             }
