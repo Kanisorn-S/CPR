@@ -1,6 +1,7 @@
 pub mod cell;
 pub mod grid;
 
+use std::collections::HashMap;
 use std::thread::current;
 use cell::Cell;
 use crate::environment::grid::Grid;
@@ -9,6 +10,7 @@ use crate::robot::{Action, Team};
 use crate::robot::Direction::{Left, Right, Up, Down};
 use crate::robot::Robot;
 use colored::Colorize;
+use crate::robot::manager::RobotManager;
 
 pub struct World {
     grid: Grid,
@@ -19,6 +21,9 @@ pub struct World {
     blue_score: u8,
     red_deposit_box: Coord,
     blue_deposit_box: Coord,
+    pick_up_check: HashMap<Coord, Vec<(char, Team)>>,
+    red_team: RobotManager,
+    blue_team: RobotManager,
 }
 
 impl World {
@@ -32,16 +37,18 @@ impl World {
             grid.push(row);
         }
         let (red_deposit_box, blue_deposit_box) = World::spawn_deposit_box(width, height, &mut grid);
-        let robots = Self::spawn_robots(width, height, &mut grid, n_robots);
+        let (blue_team, red_team) = Self::spawn_robots(width, height, &mut grid, n_robots);
         Self {
             grid: Grid::new(grid, width, height),
-            robots,
             width,
             height,
             red_deposit_box,
             blue_deposit_box,
             red_score: 0,
             blue_score: 0,
+            pick_up_check: HashMap::new(),
+            red_team: RobotManager::new(Team::Red),
+            blue_team: RobotManager::new(Team::Blue),
         }
     }
 
@@ -74,26 +81,27 @@ impl World {
         (red_deposit_box, blue_deposit_box)
     }
 
-    fn spawn_robots(width: u8, height: u8, grid: &mut Vec<Vec<Cell>>, n_robots: u8) -> Vec<Robot> {
-        let mut robots: Vec<Robot> = Vec::new();
+    fn spawn_robots(width: u8, height: u8, grid: &mut Vec<Vec<Cell>>, n_robots: u8) -> (Vec<Robot>, Vec<Robot>) {
+        let mut blue_team: Vec<Robot> = Vec::new();
+        let mut red_team: Vec<Robot> = Vec::new();
         // Blue team robots
         for i in 0..n_robots {
             let id = (b'a' + i) as char;
-            let current_pos = Coord::random(0..width, 0..height);
+            let current_pos = Coord::random(0..1, 0..1);
             let new_robot = Self::create_robot(id, Team::Blue, current_pos, width, height);
             grid[(height - 1 - current_pos.y) as usize][current_pos.x as usize].add_bot(&new_robot);
-            robots.push(new_robot);
+            blue_team.push(new_robot);
         }
 
         // Red team robots
-        for i in 0..n_robots {
-            let id = (b'A' + i) as char;
-            let current_pos = Coord::random(0..width, 0..height);
-            let new_robot = Self::create_robot(id, Team::Red, current_pos, width, height);
-            grid[(height - 1 - current_pos.y) as usize][current_pos.x as usize].add_bot(&new_robot);
-            robots.push(new_robot);
-        }
-        robots
+        // for i in 0..n_robots {
+        //     let id = (b'A' + i) as char;
+        //     let current_pos = Coord::random(0..width, 0..height);
+        //     let new_robot = Self::create_robot(id, Team::Red, current_pos, width, height);
+        //     grid[(height - 1 - current_pos.y) as usize][current_pos.x as usize].add_bot(&new_robot);
+        //     red_team.push(new_robot);
+        // }
+        (blue_team , red_team)
     }
 
     fn create_robot(id: char, team: Team, current_pos: Coord, width: u8, height: u8) -> Robot {
@@ -106,14 +114,18 @@ impl World {
         Robot::new(id, team, current_pos, facing)
     }
 
-    pub fn make_decisions_and_take_actions(&mut self) -> Vec<Action> {
-        let mut decisions: Vec<Action> = Vec::new();
+    pub fn make_decisions_and_take_actions(&mut self) {
         for robot in &mut self.robots {
             let action = robot.make_decision();
+            if let Action::PickUp = action {
+                self.pick_up_check.entry(robot.get_coord()).or_insert(Vec::new()).push((robot.get_id(), robot.get_team()));
+            }
             println!("Robot {:?} decided to {:?}", robot, action);
             robot.take_action(&action, &mut self.grid);
-            decisions.push(action);
         }
-        decisions
+    }
+
+    pub fn print_pickup_check(&self) {
+        println!("Pickup check: {:?}", self.pick_up_check);
     }
 }

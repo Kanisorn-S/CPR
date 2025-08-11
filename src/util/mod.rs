@@ -2,7 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::ops::Range;
 use colored::Colorize;
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Eq, Hash)]
 pub struct Coord {
     pub x: u8,
     pub y: u8,

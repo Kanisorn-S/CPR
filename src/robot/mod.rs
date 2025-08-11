@@ -1,3 +1,5 @@
+pub mod manager;
+
 use std::fmt::{Debug, Formatter};
 use crate::util::Coord;
 use colored::Colorize;
@@ -92,6 +94,10 @@ impl Robot {
 
     pub fn get_id(&self) -> char {
         self.id
+    }
+
+    pub fn get_coord(&self) -> Coord {
+        self.current_coord
     }
 
     pub fn take_action(&mut self, action: &Action, grid: &mut Grid) {
