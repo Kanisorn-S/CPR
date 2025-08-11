@@ -1,14 +1,18 @@
-mod cell;
+pub mod cell;
+mod grid;
 
 use std::thread::current;
 use cell::Cell;
+use crate::environment::grid::Grid;
 use crate::util::Coord;
-use crate::robot::Team;
+use crate::robot::{Action, Team};
 use crate::robot::Direction::{Left, Right, Up, Down};
 use crate::robot::Robot;
+use colored::Colorize;
 
 pub struct World {
-    grid: Vec<Vec<Cell>>,
+    grid: Grid,
+    robots: Vec<Robot>,
     width: u8,
     height: u8,
     red_score: u8,
@@ -28,9 +32,10 @@ impl World {
             grid.push(row);
         }
         let (red_deposit_box, blue_deposit_box) = World::spawn_deposit_box(width, height, &mut grid);
-        Self::spawn_robots(width, height, &mut grid, n_robots);
+        let robots = Self::spawn_robots(width, height, &mut grid, n_robots);
         Self {
-            grid,
+            grid: Grid::new(grid),
+            robots,
             width,
             height,
             red_deposit_box,
@@ -41,12 +46,16 @@ impl World {
     }
 
     pub fn print_grid(&self) {
-        for row in &self.grid {
-            for cell in row {
-                print!("{:?} ", cell);
-            }
-            println!();
-        }
+        println!("{}", "Current Grid".bold());
+        println!("{:?}", self.grid);
+    }
+
+    pub fn get_width(&self) -> u8 {
+        self.width
+    }
+
+    pub fn get_height(&self) -> u8 {
+        self.height
     }
 
     fn spawn_deposit_box(width: u8, height: u8, grid: &mut Vec<Vec<Cell>>) -> (Coord, Coord) {
@@ -65,24 +74,28 @@ impl World {
         (red_deposit_box, blue_deposit_box)
     }
 
-    fn spawn_robots(width: u8, height: u8, grid: &mut Vec<Vec<Cell>>, n_robots: u8) {
+    fn spawn_robots(width: u8, height: u8, grid: &mut Vec<Vec<Cell>>, n_robots: u8) -> Vec<Robot> {
+        let mut robots: Vec<Robot> = Vec::new();
         // Blue team robots
         for i in 0..n_robots {
             let id = (b'a' + i) as char;
             let current_pos = Coord::random(0..width, 0..height);
             let new_robot = Self::create_robot(id, Team::Blue, current_pos, width, height);
-            grid[(height - 1 - current_pos.y) as usize][current_pos.x as usize].add_bot(new_robot);
+            grid[(height - 1 - current_pos.y) as usize][current_pos.x as usize].add_bot(&new_robot);
+            robots.push(new_robot);
         }
-        
+
         // Red team robots
         for i in 0..n_robots {
             let id = (b'A' + i) as char;
             let current_pos = Coord::random(0..width, 0..height);
             let new_robot = Self::create_robot(id, Team::Red, current_pos, width, height);
-            grid[(height - 1 - current_pos.y) as usize][current_pos.x as usize].add_bot(new_robot);
+            grid[(height - 1 - current_pos.y) as usize][current_pos.x as usize].add_bot(&new_robot);
+            robots.push(new_robot);
         }
+        robots
     }
-    
+
     fn create_robot(id: char, team: Team, current_pos: Coord, width: u8, height: u8) -> Robot {
         let facing = match rand::random_range(0..4) {
             0 => Left,
@@ -91,5 +104,16 @@ impl World {
             _ => Up,
         };
         Robot::new(id, team, current_pos, facing)
+    }
+
+    pub fn make_decisions_and_take_actions(&mut self) -> Vec<Action> {
+        let mut decisions: Vec<Action> = Vec::new();
+        for robot in &mut self.robots {
+            let action = robot.make_decision();
+            println!("Robot {:?} decided to {:?}", robot, action);
+            robot.take_action(&action, self.width, self.height);
+            decisions.push(action);
+        }
+        decisions
     }
 }

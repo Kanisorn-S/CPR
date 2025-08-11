@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use crate::robot::{Robot, Team};
 use colored::Colorize;
+use crate::util::Coord;
 
 enum CellContent {
     GoldBars(u8),
@@ -8,8 +9,7 @@ enum CellContent {
 }
 
 pub struct Cell {
-    coord: (u8, u8),
-    robots: Vec<Robot>,
+    pub coord: Coord,
     red_robots: u8,
     blue_robots: u8,
     content: Option<CellContent>,
@@ -23,7 +23,7 @@ impl Debug for Cell {
             Some(CellContent::DepositBox(Team::Blue, n)) => format!("[{}]", n).to_string().blue(),
             None => "   ".to_string().green(),
         };
-        write!(f, "({}{}{})", self.red_robots.to_string().red(), content, self.blue_robots.to_string().blue())
+        write!(f, "({} {} {})", self.red_robots.to_string().red(), content, self.blue_robots.to_string().blue())
     }
 }
 impl Cell {
@@ -35,8 +35,7 @@ impl Cell {
             None
         };
         Cell {
-            coord,
-            robots: Vec::new(),
+            coord: Coord::new(coord.0, coord.1),
             red_robots: 0,
             blue_robots: 0,
             content,
@@ -47,12 +46,11 @@ impl Cell {
         self.content = Some(CellContent::DepositBox(team, 0));
     }
 
-    pub fn add_bot(&mut self, robot: Robot) {
+    pub fn add_bot(&mut self, robot: &Robot) {
         let team = robot.get_team();
         match team {
             Team::Red => self.red_robots += 1,
             Team::Blue => self.blue_robots += 1,
         }
-        self.robots.push(robot);
     }
 }

@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use std::ops::Range;
+use colored::Colorize;
 
 #[derive(PartialEq, Clone, Copy)]
 pub struct Coord {
@@ -9,7 +10,8 @@ pub struct Coord {
 
 impl Debug for Coord {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}, {})", self.x, self.y)
+        let s = format!("({}, {})", self.x, self.y).bold().to_string();
+        write!(f, "{}", s)
     }
 }
 

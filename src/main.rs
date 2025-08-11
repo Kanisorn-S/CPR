@@ -9,6 +9,7 @@ const MAX_GOLD: u8 = 5;
 const N_ROBOTS: u8 = 2;
 
 fn main() {
-    let world = World::new(WIDTH, HEIGHT, P_GOLD, MAX_GOLD, N_ROBOTS);
+    let mut world = World::new(WIDTH, HEIGHT, P_GOLD, MAX_GOLD, N_ROBOTS);
     world.print_grid();
+    world.make_decisions_and_take_actions();
 }
