@@ -18,7 +18,7 @@ impl RobotManager {
         self.robots.values_mut().collect()
     }
 
-    fn get_robot_by_id(&mut self, id: char) -> Option<&mut Robot> {
+    pub fn get_robot_by_id(&mut self, id: char) -> Option<&mut Robot> {
         self.robots.get_mut(&id)
     }
     
@@ -35,5 +35,19 @@ impl RobotManager {
         let robot_1 = self.get_robot_by_id(id_1).unwrap();
         robot_1.pickup(id_2);
         true
+    }
+
+    pub fn get_carrying_robot(&mut self) -> Option<Vec<&mut Robot>> {
+        let mut carrying_robot: Vec<&mut Robot> = Vec::new();
+        for robot in self.robots.values_mut() {
+            if robot.is_carrying {
+                carrying_robot.push(robot);
+            }
+        }
+        if carrying_robot.is_empty() {
+            None
+        } else {
+            Some(carrying_robot)
+        }
     }
 }

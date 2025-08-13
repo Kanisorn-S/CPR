@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use crate::robot::{Robot, Team};
 use colored::Colorize;
+use crate::environment::World;
 use crate::util::Coord;
 
 enum CellContent {
@@ -83,7 +84,34 @@ impl Cell {
     pub fn remove_gold(&mut self) {
         match self.content {
             Some(CellContent::GoldBars(n)) if n > 1 => self.content = Some(CellContent::GoldBars(n - 1)),
-            Some(CellContent::GoldBars(n)) => self.content = None,
+            Some(CellContent::GoldBars(_)) => self.content = None,
+            _ => ()
+        }
+    }
+
+    pub fn add_gold(&mut self) {
+        match self.content {
+            Some(CellContent::GoldBars(n)) => self.content = Some(CellContent::GoldBars(n + 1)),
+            Some(CellContent::DepositBox(team, n)) => {
+                self.content = Some(CellContent::DepositBox(team, n + 1));
+            },
+            None => self.content = Some(CellContent::GoldBars(1))
+        }
+    }
+
+    pub fn is_deposit_box(&self) -> Option<Team> {
+        return if let Some(CellContent::DepositBox(team, _)) = self.content {
+            Some(team)
+        } else {
+            None
+        }
+    }
+    
+    pub fn increment_score(&mut self) {
+        match self.content {
+            Some(CellContent::DepositBox(team, n)) => {
+                self.content = Some(CellContent::DepositBox(team, n + 1));
+            },
             _ => ()
         }
     }

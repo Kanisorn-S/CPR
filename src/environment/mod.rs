@@ -2,7 +2,6 @@ pub mod cell;
 pub mod grid;
 
 use std::collections::HashMap;
-use std::thread::current;
 use cell::Cell;
 use crate::environment::grid::Grid;
 use crate::util::Coord;
@@ -53,7 +52,6 @@ impl World {
     }
 
     pub fn print_grid(&self) {
-        println!("{}", "Current Grid".bold());
         println!("{:?}", self.grid);
     }
 
@@ -75,18 +73,19 @@ impl World {
             }
         }
         grid.get_cell(red_deposit_box).unwrap().set_deposit_box(Team::Red);
-        grid.get_cell(blue_deposit_box).unwrap().set_deposit_box(Team::Blue);
+        // grid.get_cell(blue_deposit_box).unwrap().set_deposit_box(Team::Blue);
+        grid.get_cell(Coord::new(0, 1)).unwrap().set_deposit_box(Team::Blue);
         (red_deposit_box, blue_deposit_box)
     }
 
     fn spawn_robots(width: usize, height: usize, grid: &mut Grid, n_robots: u8) -> (HashMap<char, Robot>, HashMap<char, Robot>) {
         let mut blue_robots: HashMap<char, Robot> = HashMap::new();
-        let mut red_robots: HashMap<char, Robot> = HashMap::new();
+        let red_robots: HashMap<char, Robot> = HashMap::new();
         // Blue team robots
         for i in 0..n_robots {
             let id = (b'a' + i) as char;
             let current_pos = Coord::random(0..1, 0..1);
-            let new_robot = Self::create_robot(id, Team::Blue, current_pos, width, height);
+            let new_robot = Self::create_robot(id, Team::Blue, current_pos);
             grid.get_cell(current_pos).unwrap().add_bot(&new_robot);
             blue_robots.insert(id, new_robot);
         }
@@ -95,15 +94,15 @@ impl World {
         // for i in 0..n_robots {
         //     let id = (b'A' + i) as char;
         //     let current_pos = Coord::random(0..width, 0..height);
-        //     let new_robot = Self::create_robot(id, Team::Red, current_pos, width, height);
+        //     let new_robot = Self::create_robot(id, Team::Red, current_pos);
         //     grid.get_cell(current_pos).unwrap().add_bot(&new_robot);
         //     red_robots.insert(id, new_robot);
         // }
         (blue_robots , red_robots)
     }
 
-    fn create_robot(id: char, team: Team, current_pos: Coord, width: usize, height: usize) -> Robot {
-        let facing = match rand::random_range(0..4) {
+    fn create_robot(id: char, team: Team, current_pos: Coord) -> Robot {
+        let facing = match rand::random_range(3..4) {
             0 => Left,
             1 => Right,
             2 => Down,
@@ -113,6 +112,7 @@ impl World {
     }
 
     pub fn make_decisions_and_take_actions(&mut self) {
+        println!("{}", "Robots Decisions".bold());
         self.pick_up_check.clear();
         for blue_robot in self.blue_team.get_robots() {
             let action = blue_robot.make_decision();
@@ -133,6 +133,8 @@ impl World {
         }
 
         self.check_pickup_logic();
+        self.check_fumble();
+        self.check_drop_deposit();
     }
 
     fn check_pickup_logic(&mut self) {
@@ -140,7 +142,7 @@ impl World {
             let gold_bars = self.grid.get_cell(*coord).unwrap().get_gold_amount();
             match gold_bars {
                 Some(n) => {
-                    if (robots.len() < 2) {
+                    if robots.len() < 2 {
                         continue;
                     } else {
                         let mut reds: Vec<char> = Vec::new();
@@ -156,12 +158,14 @@ impl World {
                             let picked = self.red_team.pickup_gold(reds[0], reds[1]);
                             if picked {
                                 self.grid.get_cell(*coord).unwrap().remove_gold();
+                                println!("{} and {} has {} picked up a {}", reds[0].to_string().red().bold(), reds[1].to_string().red().bold(), "SUCCESFULLY".green().bold(), "GOLD BAR".yellow().bold())
                             }
                         }
                         if blue_is_able_to_pick {
                             let picked = self.blue_team.pickup_gold(blues[0], blues[1]);
                             if picked {
                                 self.grid.get_cell(*coord).unwrap().remove_gold();
+                                println!("{} and {} has {} picked up a {}", blues[0].to_string().blue().bold(), blues[1].to_string().blue().bold(), "SUCCESFULLY".green().bold(), "GOLD BAR".yellow().bold())
                             }
                         }
                     }
@@ -178,14 +182,141 @@ impl World {
     }
 
     fn teams_that_picks(red_robots: usize, blue_robots: usize, golds: u8) -> (bool, bool) {
-        return if Self::is_invalid_pickup(red_robots, blue_robots, golds) {
+        if Self::is_invalid_pickup(red_robots, blue_robots, golds) {
             (false, false)
         } else {
             (red_robots == 2, blue_robots == 2)
         }
     }
 
+    fn check_fumble(&mut self) {
+        let add_gold_coords = self.get_gold_coords();
+        for gold_coord in add_gold_coords {
+            self.grid.get_cell(gold_coord).unwrap().add_gold();
+        }
+    }
+
+    fn check_drop_deposit(&mut self) {
+        let red_carriers = self.red_team.get_carrying_robot();
+        let blue_carriers = self.blue_team.get_carrying_robot();
+        match red_carriers {
+            Some(carriers) => {
+                let mut robot_pos: HashMap<char, &mut Robot> = HashMap::new();
+                for carrier in carriers {
+                    let partner_id = carrier.get_pair_id().unwrap();
+                    let partner_coord = robot_pos.remove(&partner_id);
+                    match partner_coord {
+                        Some(pair_robot) => {
+                            if pair_robot.get_coord() == carrier.get_coord() && carrier.get_coord() == self.red_deposit_box {
+                                carrier.score_gold();
+                                pair_robot.score_gold();
+                                self.red_score += 1;
+                                println!("{}: {}", "RED".red().bold(), self.red_score.to_string().red());
+                                println!("{}: {}", "BLU".blue().bold(), self.blue_score.to_string().blue());
+                                self.grid.get_cell(self.red_deposit_box).unwrap().increment_score();
+                            }
+                        },
+                        None => {
+                            robot_pos.insert(carrier.get_id(), carrier);
+                        }
+                    }
+                }
+            },
+            None => ()
+        }
+        match blue_carriers {
+            Some(carriers) => {
+                let mut robot_pos: HashMap<char, &mut Robot> = HashMap::new();
+                for carrier in carriers {
+                    let partner_id = carrier.get_pair_id().unwrap();
+                    let partner_coord = robot_pos.remove(&partner_id);
+                    match partner_coord {
+                        Some(pair_robot) => {
+                            if pair_robot.get_coord() == carrier.get_coord() && carrier.get_coord() == self.blue_deposit_box {
+                                carrier.score_gold();
+                                pair_robot.score_gold();
+                                self.blue_score += 1;
+                                println!("{}: {}", "RED".red().bold(), self.red_score.to_string().red());
+                                println!("{}: {}", "BLU".blue().bold(), self.blue_score.to_string().blue());
+                                self.grid.get_cell(self.blue_deposit_box).unwrap().increment_score();
+                            }
+                        },
+                        None => {
+                            robot_pos.insert(carrier.get_id(), carrier);
+                        }
+                    }
+                }
+            },
+            None => ()
+        }
+    }
+
+    fn get_gold_coords(&mut self) -> Vec<Coord> {
+        let red_carriers = self.red_team.get_carrying_robot();
+        let blue_carriers = self.blue_team.get_carrying_robot();
+        let mut add_gold_coords: Vec<Coord> = Vec::new();
+        match red_carriers {
+            Some(carriers) => {
+                let mut robot_pos: HashMap<char, &mut Robot> = HashMap::new();
+                for carrier in carriers {
+                    let partner_id = carrier.get_pair_id().unwrap();
+                    let partner_coord = robot_pos.remove(&partner_id);
+                    match partner_coord {
+                        Some(pair_robot) => {
+                            if pair_robot.get_coord() != carrier.get_coord() {
+                                add_gold_coords.push(carrier.drop_gold());
+                                pair_robot.drop_gold();
+                            }
+                        },
+                        None => {
+                            robot_pos.insert(carrier.get_id(), carrier);
+                        }
+                    }
+                }
+            },
+            None => ()
+        }
+        match blue_carriers {
+            Some(carriers) => {
+                let mut robot_pos: HashMap<char, &mut Robot> = HashMap::new();
+                for carrier in carriers {
+                    let partner_id = carrier.get_pair_id().unwrap();
+                    let partner_coord = robot_pos.remove(&partner_id);
+                    match partner_coord {
+                        Some(pair_robot) => {
+                            if pair_robot.get_coord() != carrier.get_coord() {
+                                add_gold_coords.push(carrier.drop_gold());
+                                pair_robot.drop_gold();
+                            }
+                        },
+                        None => {
+                            robot_pos.insert(carrier.get_id(), carrier);
+                        }
+                    }
+                }
+            },
+            None => ()
+        }
+        add_gold_coords
+    }
+
     pub fn print_pickup_check(&self) {
         println!("Pickup check: {:?}", self.pick_up_check);
+    }
+
+    pub fn increment_score(&mut self, team: Team) {
+        match team {
+            Team::Blue => self.blue_score += 1,
+            Team::Red => self.red_score += 1,
+        }
+    }
+
+    pub fn print_robots(&mut self) {
+        for red_robot in &self.red_team.get_robots() {
+            println!("{:?}", red_robot);
+        }
+        for blue_robot in &self.blue_team.get_robots() {
+            println!("{:?}", blue_robot);
+        }
     }
 }

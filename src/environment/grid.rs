@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use crate::environment::cell::Cell;
 use colored::Colorize;
-use crate::robot::{Robot, Team};
+use crate::robot::Robot;
 use crate::util::Coord;
 
 pub struct Grid {
@@ -28,7 +28,7 @@ impl Grid {
         match self.grid.get(self.height - y - 1) {
             Some(row) => {
                 match row.get(x) {
-                    Some(_) => Some(&mut self.grid[(self.height - y - 1)][x]),
+                    Some(_) => Some(&mut self.grid[self.height - y - 1][x]),
                     None => None
                 }
             },
