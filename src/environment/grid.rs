@@ -10,6 +10,7 @@ pub struct Grid {
     height: usize,
 }
 
+// Constructor and getters
 impl Grid {
     pub fn new(grid: Vec<Vec<Cell>>, width: usize, height: usize) -> Grid {
         Grid {
@@ -36,6 +37,16 @@ impl Grid {
         }
     }
 
+    pub fn get_width(&self) -> usize {
+        self.width
+    }
+    pub fn get_height(&self) -> usize {
+        self.height
+    }
+}
+
+// Robot logic
+impl Grid {
     pub fn add_robot(&mut self, robot: &Robot, coord: Coord) {
         let cell = self.get_cell(coord);
         match cell {
@@ -55,15 +66,9 @@ impl Grid {
             None => {}
         }
     }
-
-    pub fn get_width(&self) -> usize {
-        self.width
-    }
-    pub fn get_height(&self) -> usize {
-        self.height
-    }
 }
 
+// Print functions
 impl Debug for Grid {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for (index, row) in self.grid.iter().enumerate() {

@@ -2,7 +2,7 @@ pub mod manager;
 
 use std::fmt::{Debug, Formatter};
 use crate::util::Coord;
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 use crate::environment::grid::Grid;
 
 #[derive(Copy, Clone)]
@@ -11,11 +11,20 @@ pub enum Team {
     Blue,
 }
 
+impl Team {
+    pub fn style(&self, text: String) -> ColoredString {
+        match self {
+            Team::Red => text.red(),
+            Team::Blue => text.blue(),
+        }
+    }
+}
+
 impl Debug for Team {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Team::Red => write!(f, "{}", "RED".red()),
-            Team::Blue => write!(f, "{}", "BLUE".blue()),
+            Team::Blue => write!(f, "{}", "BLU".blue()),
         }
     }
 }
@@ -67,31 +76,9 @@ pub struct Robot {
     turn: usize,
 }
 
-impl Debug for Robot {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.team {
-            Team::Red => {
-                write!(f, "{} is at {:?} facing {:?}", self.id.to_string().red(), self.current_coord, self.facing)?;
-                if self.is_carrying {
-                    write!(f, "{} with {}", "CARRYING".yellow().bold(), self.pair_id.unwrap().to_string().red().dimmed())
-                } else {
-                    write!(f, "")
-                }
-            },
-            Team::Blue => {
-                write!(f, "{} is at {:?} facing {:?}", self.id.to_string().blue(), self.current_coord, self.facing)?;
-                if self.is_carrying {
-                    write!(f, " is {} with {}", "CARRYING GOLD".yellow().bold(), self.pair_id.unwrap().to_string().blue().dimmed())
-                } else {
-                    write!(f, "")
-                }
-            },
-        }
-    }
-}
 
+// Constructors and getters
 impl Robot {
-
     pub fn new(id: char, team: Team, current_coord: Coord, facing: Direction) -> Self {
         let mut coord_history: Vec<Coord> = Vec::new();
         coord_history.push(current_coord);
@@ -108,17 +95,6 @@ impl Robot {
         }
     }
 
-    pub fn make_decision(&self) -> Action {
-        match rand::random_range(5..7) {
-            1 => Action::Turn(Direction::Left),
-            2 => Action::Turn(Direction::Right),
-            3 => Action::Turn(Direction::Up),
-            4 => Action::Turn(Direction::Down),
-            5 => Action::Move,
-            _ => Action::PickUp,
-        }
-    }
-
     pub fn get_team(&self) -> Team {
         self.team
     }
@@ -131,6 +107,33 @@ impl Robot {
         self.current_coord
     }
 
+
+    pub fn is_carrying(&self) -> bool {
+        self.is_carrying
+    }
+    pub fn get_pair_id(&self) -> Option<char> {
+        self.pair_id
+    }
+
+}
+
+// Decision logic 
+impl Robot {
+    pub fn make_decision(&self) -> Action {
+        match rand::random_range(5..7) {
+            1 => Action::Turn(Direction::Left),
+            2 => Action::Turn(Direction::Right),
+            3 => Action::Turn(Direction::Up),
+            4 => Action::Turn(Direction::Down),
+            5 => Action::Move,
+            _ => Action::PickUp,
+        }
+    }
+
+}
+
+// Action logic
+impl Robot {
     pub fn take_action(&mut self, action: &Action, grid: &mut Grid) {
         match action {
             Action::Turn(direction) => {
@@ -191,10 +194,7 @@ impl Robot {
             },
         }
     }
-
-    pub fn is_carrying(&self) -> bool {
-        self.is_carrying
-    }
+    
     pub fn pickup(&mut self, pair_id: char) {
         if !self.is_carrying {
             self.is_carrying = true;
@@ -202,10 +202,10 @@ impl Robot {
         }
     }
 
-    pub fn get_pair_id(&self) -> Option<char> {
-        self.pair_id
-    }
+}
 
+// Gold logic 
+impl Robot {
     pub fn drop_gold(&mut self) -> Coord {
         match self.team {
             Team::Red => println!("{} has {} a {} at {:?}", self.id.to_string().red().bold(), "DROPPED".on_red().bold().italic(), "GOLD BAR".yellow().bold(), self.coord_history[self.turn - 1]),
@@ -214,7 +214,7 @@ impl Robot {
         self.is_carrying = false;
         self.coord_history[self.turn - 1]
     }
-    
+
     pub fn score_gold(&mut self) {
         match self.team {
             Team::Red => println!("{} has {}", self.id.to_string().red().bold(), "SCORED!".green().bold()),
@@ -224,4 +224,27 @@ impl Robot {
     }
 }
 
+// Print functions
+impl Debug for Robot {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self.team {
+            Team::Red => {
+                write!(f, "{} is at {:?} facing {:?}", self.id.to_string().red(), self.current_coord, self.facing)?;
+                if self.is_carrying {
+                    write!(f, " is {} with {}", "CARRYING".yellow().bold(), self.pair_id.unwrap().to_string().red().dimmed())
+                } else {
+                    write!(f, "")
+                }
+            },
+            Team::Blue => {
+                write!(f, "{} is at {:?} facing {:?}", self.id.to_string().blue(), self.current_coord, self.facing)?;
+                if self.is_carrying {
+                    write!(f, " is {} with {}", "CARRYING GOLD".yellow().bold(), self.pair_id.unwrap().to_string().blue().dimmed())
+                } else {
+                    write!(f, "")
+                }
+            },
+        }
+    }
+}
 

@@ -6,6 +6,7 @@ pub struct RobotManager {
     robots: HashMap<char, Robot>,
 }
 
+// Constructor and getters
 impl RobotManager {
     pub fn new(team: Team, robots: HashMap<char, Robot>) -> RobotManager {
         RobotManager {
@@ -22,6 +23,23 @@ impl RobotManager {
         self.robots.get_mut(&id)
     }
     
+    pub fn get_carrying_robot(&mut self) -> Option<Vec<&mut Robot>> {
+        let mut carrying_robot: Vec<&mut Robot> = Vec::new();
+        for robot in self.robots.values_mut() {
+            if robot.is_carrying {
+                carrying_robot.push(robot);
+            }
+        }
+        if carrying_robot.is_empty() {
+            None
+        } else {
+            Some(carrying_robot)
+        }
+    }
+}
+
+// Robot Actions logic
+impl RobotManager {
     pub fn pickup_gold(&mut self, id_1: char, id_2: char) -> bool {
         let robot_1 = self.get_robot_by_id(id_1).unwrap();
         if robot_1.is_carrying {
@@ -37,17 +55,4 @@ impl RobotManager {
         true
     }
 
-    pub fn get_carrying_robot(&mut self) -> Option<Vec<&mut Robot>> {
-        let mut carrying_robot: Vec<&mut Robot> = Vec::new();
-        for robot in self.robots.values_mut() {
-            if robot.is_carrying {
-                carrying_robot.push(robot);
-            }
-        }
-        if carrying_robot.is_empty() {
-            None
-        } else {
-            Some(carrying_robot)
-        }
-    }
 }

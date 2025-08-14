@@ -8,13 +8,8 @@ pub struct Coord {
     pub y: usize,
 }
 
-impl Debug for Coord {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let s = format!("({}, {})", self.x, self.y).bold().to_string();
-        write!(f, "{}", s)
-    }
-}
 
+// Constructor and getters
 impl Coord {
     pub fn new(x: usize, y: usize) -> Coord {
         Coord { x, y }
@@ -24,5 +19,13 @@ impl Coord {
         let x = rand::random_range(range_x);
         let y = rand::random_range(range_y);
         Coord { x, y }
+    }
+}
+
+// Print functions
+impl Debug for Coord {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let s = format!("({}, {})", self.x, self.y).bold().to_string();
+        write!(f, "{}", s)
     }
 }
