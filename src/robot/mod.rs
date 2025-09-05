@@ -1,8 +1,10 @@
 pub mod manager;
 
+use std::collections::LinkedList;
 use std::fmt::{Debug, Formatter};
 use crate::util::Coord;
 use colored::{ColoredString, Colorize};
+use crate::environment::cell::Cell;
 use crate::environment::grid::Grid;
 
 #[derive(Copy, Clone)]
@@ -221,6 +223,106 @@ impl Robot {
             Team::Blue => println!("{} has {}", self.id.to_string().blue().bold(), "SCORED!".green().bold()),
         }
         self.is_carrying = false;
+    }
+}
+
+// Observation logic
+impl Robot {
+    pub fn observe(&mut self, grid: &mut Grid) -> LinkedList<&Cell> {
+        let mut observed_cells = LinkedList::new();
+        observed_cells
+    }
+
+    pub fn observable_cells(&mut self, width: usize, height: usize) -> LinkedList<Coord> {
+        let mut observable_cells: LinkedList::<Coord> = LinkedList::new();
+        let mut current_coord = self.current_coord;
+        match self.facing {
+            Direction::Left => {
+                if (current_coord.x == 0) { return observable_cells; }
+                current_coord.x -= 1
+            },
+            Direction::Right => {
+                if (current_coord.x == width - 1) { return observable_cells; }
+                current_coord.x += 1
+            },
+            Direction::Up => {
+                if (current_coord.y == height - 1) { return observable_cells; }
+                current_coord.y += 1
+            },
+            Direction::Down => {
+                if (current_coord.y == 0) { return observable_cells; }
+                current_coord.y -= 1
+            },
+        }
+        for i in 0..=1 {
+            let x = current_coord.x;
+            let y = current_coord.y;
+            match self.facing {
+                Direction::Left | Direction::Right=> { observable_cells.push_back(Coord::new(x, y + i))},
+                Direction::Up | Direction::Down => { observable_cells.push_back(Coord::new(x + i, y))},
+            }
+        }
+        match self.facing {
+            Direction::Left => {
+                if (current_coord.y != 0) {
+                    observable_cells.push_back(Coord::new(current_coord.x, current_coord.y - 1));
+                }
+                if (current_coord.x == 0) { return observable_cells; }
+                current_coord.x -= 1
+            },
+            Direction::Right => {
+                if (current_coord.y != 0) {
+                    observable_cells.push_back(Coord::new(current_coord.x, current_coord.y - 1));
+                }
+                if (current_coord.x == width - 1) { return observable_cells; }
+                current_coord.x += 1
+            },
+            Direction::Up => {
+                if (current_coord.x != 0) {
+                    observable_cells.push_back(Coord::new(current_coord.x - 1, current_coord.y));
+                }
+                if (current_coord.y == height - 1) { return observable_cells; }
+                current_coord.y += 1
+            },
+            Direction::Down => {
+                if (current_coord.x != 0) {
+                    observable_cells.push_back(Coord::new(current_coord.x - 1, current_coord.y));
+                }
+                if (current_coord.y == 0) { return observable_cells; }
+                current_coord.y -= 1
+            },
+        }
+        for i in (0..=2).rev() {
+            let x = current_coord.x;
+            let y = current_coord.y;
+            match self.facing {
+                Direction::Left | Direction::Right=> {
+                    if (y >= i) {
+                        observable_cells.push_back(Coord::new(x, y - i))}
+                    }
+                Direction::Up | Direction::Down => {
+                    if (x >= i) {
+                        observable_cells.push_back(Coord::new(x - i, y))
+                    }
+                }
+            }
+        }
+        for i in 1..=2 {
+            let x = current_coord.x;
+            let y = current_coord.y;
+            match self.facing {
+                Direction::Left | Direction::Right => {
+                    if (y + i < height) {
+                        observable_cells.push_back(Coord::new(x, y + i))
+                    }
+                },
+            Direction::Up | Direction::Down => {
+                if (x + i < width) {
+                    observable_cells.push_back(Coord::new(x + i, y))}
+                }
+            }
+        }
+        observable_cells
     }
 }
 

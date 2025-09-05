@@ -24,12 +24,25 @@ impl Grid {
         &self.grid
     }
 
-    pub fn get_cell(&mut self, coord: Coord) -> Option<&mut Cell> {
+    pub fn get_mut_cell(&mut self, coord: Coord) -> Option<&mut Cell> {
         let Coord { x, y } = coord;
         match self.grid.get(self.height - y - 1) {
             Some(row) => {
                 match row.get(x) {
                     Some(_) => Some(&mut self.grid[self.height - y - 1][x]),
+                    None => None
+                }
+            },
+            None => None
+        }
+    }
+    
+    pub fn get_cell(&mut self, coord: Coord) -> Option<&Cell> {
+        let Coord { x, y } = coord;
+        match self.grid.get(self.height - y - 1) {
+            Some(row) => {
+                match row.get(x) {
+                    Some(_) => Some(&self.grid[self.height - y - 1][x]),
                     None => None
                 }
             },
@@ -48,7 +61,7 @@ impl Grid {
 // Robot logic
 impl Grid {
     pub fn add_robot(&mut self, robot: &Robot, coord: Coord) {
-        let cell = self.get_cell(coord);
+        let cell = self.get_mut_cell(coord);
         match cell {
             Some(cell_ref) => {
                 cell_ref.add_bot(robot);
@@ -58,7 +71,7 @@ impl Grid {
     }
 
     pub fn remove_robot(&mut self, robot: &Robot, coord: Coord) {
-        let cell = self.get_cell(coord);
+        let cell = self.get_mut_cell(coord);
         match cell {
             Some(cell_ref) => {
                 cell_ref.remove_bot(robot);

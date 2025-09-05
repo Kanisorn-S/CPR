@@ -102,9 +102,8 @@ impl World {
                 break;
             }
         }
-        grid.get_cell(red_deposit_box).unwrap().set_deposit_box(Team::Red);
-        // grid.get_cell(blue_deposit_box).unwrap().set_deposit_box(Team::Blue);
-        grid.get_cell(Coord::new(0, 1)).unwrap().set_deposit_box(Team::Blue);
+        grid.get_mut_cell(red_deposit_box).unwrap().set_deposit_box(Team::Red);
+        grid.get_mut_cell(blue_deposit_box).unwrap().set_deposit_box(Team::Blue);
         (red_deposit_box, blue_deposit_box)
     }
 
@@ -124,7 +123,7 @@ impl World {
                 _ => Up,
             };
             let new_robot = Robot::new(id, team, current_pos, facing);
-            grid.get_cell(current_pos).unwrap().add_bot(&new_robot);
+            grid.get_mut_cell(current_pos).unwrap().add_bot(&new_robot);
             robots.insert(id, new_robot);
         }
         robots
@@ -155,6 +154,8 @@ impl World {
                 self.pick_up_check.entry(robot.get_coord()).or_insert(Vec::new()).push((robot.get_id(), team));
             }
             println!("{:?} Robot {:?} decided to {:?}", team, robot, action);
+            let observations = robot.observable_cells(self.width, self.height);
+            println!("{:?}", observations);
             robot.take_action(&action, &mut self.grid);
         }
     }
@@ -164,7 +165,7 @@ impl World {
 impl World {
     fn check_pickup_logic(&mut self) {
         for (coord, robots) in &self.pick_up_check {
-            let gold_bars = self.grid.get_cell(*coord).unwrap().get_gold_amount();
+            let gold_bars = self.grid.get_mut_cell(*coord).unwrap().get_gold_amount();
             match gold_bars {
                 Some(n) => {
                     if robots.len() < 2 {
@@ -182,14 +183,14 @@ impl World {
                         if red_is_able_to_pick {
                             let picked = self.red_team.pickup_gold(reds[0], reds[1]);
                             if picked {
-                                self.grid.get_cell(*coord).unwrap().remove_gold();
+                                self.grid.get_mut_cell(*coord).unwrap().remove_gold();
                                 println!("{} and {} has {} picked up a {}", reds[0].to_string().red().bold(), reds[1].to_string().red().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
                             }
                         }
                         if blue_is_able_to_pick {
                             let picked = self.blue_team.pickup_gold(blues[0], blues[1]);
                             if picked {
-                                self.grid.get_cell(*coord).unwrap().remove_gold();
+                                self.grid.get_mut_cell(*coord).unwrap().remove_gold();
                                 println!("{} and {} has {} picked up a {}", blues[0].to_string().blue().bold(), blues[1].to_string().blue().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
                             }
                         }
@@ -220,7 +221,7 @@ impl World {
     fn check_fumble(&mut self) {
         let add_gold_coords = self.get_gold_coords();
         for gold_coord in add_gold_coords {
-            self.grid.get_cell(gold_coord).unwrap().add_gold();
+            self.grid.get_mut_cell(gold_coord).unwrap().add_gold();
         }
     }
 
@@ -278,7 +279,7 @@ impl World {
                                 self.red_score += 1;
                                 println!("{}: {}", "RED".red().bold(), self.red_score.to_string().red());
                                 println!("{}: {}", "BLU".blue().bold(), self.blue_score.to_string().blue());
-                                self.grid.get_cell(self.red_deposit_box).unwrap().increment_score();
+                                self.grid.get_mut_cell(self.red_deposit_box).unwrap().increment_score();
                             }
                         },
                         None => {
@@ -303,7 +304,7 @@ impl World {
                                 self.blue_score += 1;
                                 println!("{}: {}", "RED".red().bold(), self.red_score.to_string().red());
                                 println!("{}: {}", "BLU".blue().bold(), self.blue_score.to_string().blue());
-                                self.grid.get_cell(self.blue_deposit_box).unwrap().increment_score();
+                                self.grid.get_mut_cell(self.blue_deposit_box).unwrap().increment_score();
                             }
                         },
                         None => {
