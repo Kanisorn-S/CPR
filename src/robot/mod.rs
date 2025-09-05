@@ -258,8 +258,16 @@ impl Robot {
             let x = current_coord.x;
             let y = current_coord.y;
             match self.facing {
-                Direction::Left | Direction::Right=> { observable_cells.push_back(Coord::new(x, y + i))},
-                Direction::Up | Direction::Down => { observable_cells.push_back(Coord::new(x + i, y))},
+                Direction::Left | Direction::Right=> {
+                    if (y + i < height) {
+                        observable_cells.push_back(Coord::new(x, y + i))
+                    }
+                },
+                Direction::Up | Direction::Down => {
+                    if (x + i < width) {
+                        observable_cells.push_back(Coord::new(x + i, y))
+                    }
+                }
             }
         }
         match self.facing {
