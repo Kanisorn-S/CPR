@@ -1,11 +1,13 @@
 pub mod manager;
 
-use std::collections::LinkedList;
+use std::collections::{LinkedList, HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
+use std::sync::{Arc, Mutex};
 use crate::util::Coord;
 use colored::{ColoredString, Colorize};
 use crate::environment::cell::Cell;
 use crate::environment::grid::Grid;
+use crate::robot::manager::Message;
 
 #[derive(Copy, Clone)]
 pub enum Team {
@@ -76,12 +78,17 @@ pub struct Robot {
     coord_history: Vec<Coord>,
     action_history: Vec<Action>,
     turn: usize,
-}
 
+    // Communication
+    message_board: Arc<Mutex<HashMap<char, HashSet<Message>>>>,
+    max_id: u32,
+    coord_to_send: Option<Coord>,
+    increment: u32,
+}
 
 // Constructors and getters
 impl Robot {
-    pub fn new(id: char, team: Team, current_coord: Coord, facing: Direction) -> Self {
+    pub fn new(id: char, team: Team, current_coord: Coord, facing: Direction, message_board: Arc<Mutex<HashMap<char, HashSet<Message>>>>) -> Self {
         let mut coord_history: Vec<Coord> = Vec::new();
         coord_history.push(current_coord);
         Robot {
@@ -94,6 +101,10 @@ impl Robot {
             coord_history,
             action_history: Vec::new(),
             turn: 0,
+            message_board,
+            max_id: 0,
+            coord_to_send: None,
+            increment: id as u32,
         }
     }
 
@@ -331,6 +342,27 @@ impl Robot {
             }
         }
         observable_cells
+    }
+}
+
+// Conversation Logic
+impl Robot {
+    fn send(&mut self, message: Message, receiver_ids: Vec<char>) {
+        let mut message_board_guard = self.message_board.lock().unwrap();
+        for receiver_id in receiver_ids {
+            message_board_guard.entry(receiver_id).or_default().insert(message);
+        }
+    }
+
+    fn receive(&self) -> Option<Message> {
+        let mut message_board_guard = self.message_board.lock().unwrap();
+        let mut message_to_return = None;
+        if let Some(messages) = message_board_guard.get_mut(&self.id) {
+            let random_message = messages.iter().next().unwrap().clone();
+            messages.remove(&random_message);
+            message_to_return = Some(random_message);
+        }
+        message_to_return
     }
 }
 

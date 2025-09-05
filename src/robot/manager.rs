@@ -1,17 +1,35 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 use crate::robot::{Robot, Team};
+use crate::util::Coord;
 
 pub struct RobotManager {
     team: Team,
     robots: HashMap<char, Robot>,
+    message_board: Arc<Mutex<HashMap<char, HashSet<Message>>>>,
+}
+
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
+pub enum MessageType {
+    PrepareRequest,
+    PrepareResponse,
+    AcceptRequest
+}
+
+#[derive(PartialEq, Hash, Eq, Clone, Copy, Debug)]
+pub struct Message {
+    msg_type: MessageType,
+    id: u32,
+    coord: Coord,
 }
 
 // Constructor and getters
 impl RobotManager {
-    pub fn new(team: Team, robots: HashMap<char, Robot>) -> RobotManager {
+    pub fn new(team: Team, robots: HashMap<char, Robot>, message_board: Arc<Mutex<HashMap<char, HashSet<Message>>>>) -> RobotManager {
         RobotManager {
             team,
             robots,
+            message_board,
         }
     }
 

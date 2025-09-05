@@ -1,7 +1,8 @@
 pub mod cell;
 pub mod grid;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 use cell::Cell;
 use crate::environment::grid::Grid;
 use crate::util::Coord;
@@ -9,7 +10,7 @@ use crate::robot::{Action, Team};
 use crate::robot::Direction::{Left, Right, Up, Down};
 use crate::robot::Robot;
 use colored::Colorize;
-use crate::robot::manager::RobotManager;
+use crate::robot::manager::{Message, RobotManager};
 
 pub struct World {
     grid: Grid,
@@ -37,8 +38,8 @@ impl World {
         }
         let mut grid = Grid::new(grid, width, height);
         let (red_deposit_box, blue_deposit_box) = Self::spawn_deposit_box(width, height, &mut grid);
-        let blue_team = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Blue);
-        let red_team = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Red);
+        let (blue_team, blue_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Blue);
+        let (red_team, red_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Red);
         Self {
             grid,
             width,
@@ -48,8 +49,8 @@ impl World {
             red_score: 0,
             blue_score: 0,
             pick_up_check: HashMap::new(),
-            red_team: RobotManager::new(Team::Red, red_team),
-            blue_team: RobotManager::new(Team::Blue, blue_team),
+            red_team: RobotManager::new(Team::Red, red_team, red_message_board),
+            blue_team: RobotManager::new(Team::Blue, blue_team, blue_message_board),
         }
     }
 
@@ -107,14 +108,16 @@ impl World {
         (red_deposit_box, blue_deposit_box)
     }
 
-    fn spawn_robots(width: usize, height: usize, grid: &mut Grid, n_robots: u8, team: Team) -> HashMap<char, Robot> {
+    fn spawn_robots(width: usize, height: usize, grid: &mut Grid, n_robots: u8, team: Team) -> (HashMap<char, Robot>, Arc<Mutex<HashMap<char, HashSet<Message>>>>) {
         let mut robots: HashMap<char, Robot> = HashMap::new();
+        let message_board: Arc<Mutex<HashMap<char, HashSet<Message>>>> = Arc::new(Mutex::new(HashMap::new()));
         let first_id = match team {
             Team::Red => b'A',
             Team::Blue => b'a',
         };
         for i in 0..n_robots {
             let id = (first_id + i) as char;
+            message_board.lock().unwrap().insert(id, HashSet::new());
             let current_pos = Coord::random(0..width, 0..height);
             let facing = match rand::random_range(0..4) {
                 0 => Left,
@@ -122,11 +125,11 @@ impl World {
                 2 => Down,
                 _ => Up,
             };
-            let new_robot = Robot::new(id, team, current_pos, facing);
+            let new_robot = Robot::new(id, team, current_pos, facing, Arc::clone(&message_board));
             grid.get_mut_cell(current_pos).unwrap().add_bot(&new_robot);
             robots.insert(id, new_robot);
         }
-        robots
+        (robots, message_board)
     }
 }
 
