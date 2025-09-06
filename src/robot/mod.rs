@@ -79,6 +79,10 @@ pub struct Robot {
     action_history: Vec<Action>,
     turn: usize,
 
+    // Perception
+    observable_cells: LinkedList<Coord>,
+    knowledge_base: HashMap<Coord, Cell>,
+
     // Communication
     message_board: Arc<Mutex<HashMap<char, HashSet<Message>>>>,
     max_id: u32,
@@ -101,6 +105,8 @@ impl Robot {
             coord_history,
             action_history: Vec::new(),
             turn: 0,
+            observable_cells: LinkedList::new(),
+            knowledge_base: HashMap::new(),
             message_board,
             max_id: 0,
             coord_to_send: None,
@@ -132,7 +138,7 @@ impl Robot {
 
 // Decision logic 
 impl Robot {
-    pub fn make_decision(&self) -> Action {
+    pub fn make_decision(&mut self) -> Action {
         match rand::random_range(5..7) {
             1 => Action::Turn(Direction::Left),
             2 => Action::Turn(Direction::Right),
@@ -239,11 +245,18 @@ impl Robot {
 
 // Observation logic
 impl Robot {
-    pub fn observe(&mut self, grid: &mut Grid) -> LinkedList<&Cell> {
-        let mut observed_cells = LinkedList::new();
-        observed_cells
-    }
 
+    pub fn observe(&mut self, grid: &mut Grid) {
+        for observable_cell in self.observable_cells.iter() {
+            let observed_cell = grid.get_cell(*observable_cell).unwrap();
+            self.knowledge_base.entry(observed_cell.coord).or_insert(observed_cell);
+        }
+        match self.team {
+            Team::Red => println!("{:?} Robot {} Current KB: {:?}", self.team, self.id.to_string().red(), self.knowledge_base),
+            Team::Blue => println!("{:?} Robot {} Current KB: {:?}", self.team, self.id.to_string().blue(), self.knowledge_base),
+
+        }
+    }
     pub fn observable_cells(&mut self, width: usize, height: usize) -> LinkedList<Coord> {
         let mut observable_cells: LinkedList::<Coord> = LinkedList::new();
         let mut current_coord = self.current_coord;
@@ -341,6 +354,7 @@ impl Robot {
                 }
             }
         }
+        self.observable_cells = observable_cells.clone();
         observable_cells
     }
 }

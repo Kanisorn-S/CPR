@@ -3,11 +3,13 @@ use crate::robot::{Robot, Team};
 use colored::Colorize;
 use crate::util::Coord;
 
+#[derive(Clone, Copy)]
 enum CellContent {
     GoldBars(u8),
     DepositBox(Team, u8),
 }
 
+#[derive(Clone, Copy)]
 pub struct Cell {
     pub coord: Coord,
     red_robots: u8,

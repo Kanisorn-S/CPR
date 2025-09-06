@@ -152,13 +152,14 @@ impl World {
             Team::Blue => &mut self.blue_team,
         };
         for robot in robot_manager.get_robots() {
+            let observations = robot.observable_cells(self.width, self.height);
+            robot.observe(&mut self.grid);
             let action = robot.make_decision();
             if let Action::PickUp = action {
                 self.pick_up_check.entry(robot.get_coord()).or_insert(Vec::new()).push((robot.get_id(), team));
             }
             println!("{:?} Robot {:?} decided to {:?}", team, robot, action);
-            let observations = robot.observable_cells(self.width, self.height);
-            println!("{:?}", observations);
+            println!("It can currently observe: {:?}", observations);
             robot.take_action(&action, &mut self.grid);
         }
     }

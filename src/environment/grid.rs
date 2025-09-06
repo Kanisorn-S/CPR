@@ -37,12 +37,12 @@ impl Grid {
         }
     }
     
-    pub fn get_cell(&mut self, coord: Coord) -> Option<&Cell> {
+    pub fn get_cell(&mut self, coord: Coord) -> Option<Cell> {
         let Coord { x, y } = coord;
         match self.grid.get(self.height - y - 1) {
             Some(row) => {
                 match row.get(x) {
-                    Some(_) => Some(&self.grid[self.height - y - 1][x]),
+                    Some(_) => Some(self.grid[self.height - y - 1][x].clone()),
                     None => None
                 }
             },
