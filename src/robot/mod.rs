@@ -227,8 +227,8 @@ impl Robot {
 impl Robot {
     pub fn drop_gold(&mut self) -> Coord {
         match self.team {
-            Team::Red => println!("{} has {} a {} at {:?}", self.id.to_string().red().bold(), "DROPPED".on_red().bold().italic(), "GOLD BAR".yellow().bold(), self.coord_history[self.turn - 1]),
-            Team::Blue => println!("{} has {} a {} at {:?}", self.id.to_string().blue().bold(), "DROPPED".on_red().bold().italic(), "GOLD BAR".yellow().bold(), self.coord_history[self.turn - 1]),
+            Team::Red => println!("{}{} has {} a {} at {:?}", "|".red(), self.id.to_string().red().bold(), "DROPPED".on_red().bold().italic(), "GOLD BAR".yellow().bold(), self.coord_history[self.turn - 1]),
+            Team::Blue => println!("{}{} has {} a {} at {:?}", "|".blue(), self.id.to_string().blue().bold(), "DROPPED".on_red().bold().italic(), "GOLD BAR".yellow().bold(), self.coord_history[self.turn - 1]),
         }
         self.is_carrying = false;
         self.coord_history[self.turn - 1]
@@ -236,8 +236,8 @@ impl Robot {
 
     pub fn score_gold(&mut self) {
         match self.team {
-            Team::Red => println!("{} has {}", self.id.to_string().red().bold(), "SCORED!".green().bold()),
-            Team::Blue => println!("{} has {}", self.id.to_string().blue().bold(), "SCORED!".green().bold()),
+            Team::Red => println!("{}{} has {}", "|".red(), self.id.to_string().red().bold(), "SCORED!".green().bold()),
+            Team::Blue => println!("{}{} has {}", "|".blue(), self.id.to_string().blue().bold(), "SCORED!".green().bold()),
         }
         self.is_carrying = false;
     }
@@ -252,8 +252,8 @@ impl Robot {
             self.knowledge_base.entry(observed_cell.coord).or_insert(observed_cell);
         }
         match self.team {
-            Team::Red => println!("{:?} Robot {} Current KB: {:?}", self.team, self.id.to_string().red(), self.knowledge_base),
-            Team::Blue => println!("{:?} Robot {} Current KB: {:?}", self.team, self.id.to_string().blue(), self.knowledge_base),
+            Team::Red => println!("{}{:?} Robot {} Current KB: {:?}", "|".red(), self.team, self.id.to_string().red(), self.knowledge_base),
+            Team::Blue => println!("{}{:?} Robot {} Current KB: {:?}", "|".blue(), self.team, self.id.to_string().blue(), self.knowledge_base),
 
         }
     }

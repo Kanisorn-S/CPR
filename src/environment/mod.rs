@@ -138,9 +138,13 @@ impl World {
 
     pub fn next_turn(&mut self) {
         self.make_decision(Team::Blue);
+        println!();
         self.make_decision(Team::Red);
 
+        println!();
+
         self.take_actions(Team::Blue);
+        println!();
         self.take_actions(Team::Red);
 
         self.check_pickup_logic();
@@ -148,7 +152,10 @@ impl World {
         self.check_drop_deposit();
     }
     pub fn make_decision(&mut self, team: Team) {
-        println!("{:?} {}", team, "Robots Observations".bold());
+        match team {
+            Team::Red => println!("{}{:?} {}", "|".red(), team, "Robots Observations".bold()),
+            Team::Blue => println!("{}{:?} {}", "|".blue(), team, "Robots Observations".bold()),
+        }
         let robot_manager = match team {
             Team::Red => &mut self.red_team,
             Team::Blue => &mut self.blue_team,
@@ -156,12 +163,18 @@ impl World {
         for robot in robot_manager.get_robots() {
             let observations = robot.observable_cells(self.width, self.height);
             robot.observe(&mut self.grid);
-            println!("It can currently observe: {:?}", observations);
+            match team {
+                Team::Red => println!("{}    It can currently observe: {:?}", "|".red(), observations),
+                Team::Blue => println!("{}    It can currently observe: {:?}", "|".blue(), observations)
+            }
         }
     }
 
     pub fn take_actions(&mut self, team: Team) {
-        println!("{:?} {}", team, "Robots Decisions".bold());
+        match team {
+            Team::Red => println!("{}{:?} {}", "|".red(), team, "Robots Decisions".bold()),
+            Team::Blue => println!("{}{:?} {}", "|".blue(), team, "Robots Decisions".bold()),
+        }
         self.pick_up_check.clear();
         let robot_manager = match team {
             Team::Red => &mut self.red_team,
@@ -172,7 +185,10 @@ impl World {
             if let Action::PickUp = action {
                 self.pick_up_check.entry(robot.get_coord()).or_insert(Vec::new()).push((robot.get_id(), team));
             }
-            println!("{:?} Robot {:?} decided to {:?}", team, robot, action);
+            match team {
+                Team::Red => println!("{}{:?} Robot {:?} decided to {:?}", "|".red(), team, robot, action),
+                Team::Blue => println!("{}{:?} Robot {:?} decided to {:?}", "|".blue(), team, robot, action)
+            }
             robot.take_action(&action, &mut self.grid);
         }
 
@@ -202,14 +218,14 @@ impl World {
                             let picked = self.red_team.pickup_gold(reds[0], reds[1]);
                             if picked {
                                 self.grid.get_mut_cell(*coord).unwrap().remove_gold();
-                                println!("{} and {} has {} picked up a {}", reds[0].to_string().red().bold(), reds[1].to_string().red().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
+                                println!("{}{} and {} has {} picked up a {}", "|".red(), reds[0].to_string().red().bold(), reds[1].to_string().red().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
                             }
                         }
                         if blue_is_able_to_pick {
                             let picked = self.blue_team.pickup_gold(blues[0], blues[1]);
                             if picked {
                                 self.grid.get_mut_cell(*coord).unwrap().remove_gold();
-                                println!("{} and {} has {} picked up a {}", blues[0].to_string().blue().bold(), blues[1].to_string().blue().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
+                                println!("{}{} and {} has {} picked up a {}", "|".blue(), blues[0].to_string().blue().bold(), blues[1].to_string().blue().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
                             }
                         }
                     }
@@ -295,8 +311,8 @@ impl World {
                                 carrier.score_gold();
                                 pair_robot.score_gold();
                                 self.red_score += 1;
-                                println!("{}: {}", "RED".red().bold(), self.red_score.to_string().red());
-                                println!("{}: {}", "BLU".blue().bold(), self.blue_score.to_string().blue());
+                                println!("{}{}: {}", "|".red(), "RED".red().bold(), self.red_score.to_string().red());
+                                println!("{}{}: {}", "|".blue(), "BLU".blue().bold(), self.blue_score.to_string().blue());
                                 self.grid.get_mut_cell(self.red_deposit_box).unwrap().increment_score();
                             }
                         },
@@ -320,8 +336,8 @@ impl World {
                                 carrier.score_gold();
                                 pair_robot.score_gold();
                                 self.blue_score += 1;
-                                println!("{}: {}", "RED".red().bold(), self.red_score.to_string().red());
-                                println!("{}: {}", "BLU".blue().bold(), self.blue_score.to_string().blue());
+                                println!("{}{}: {}", "|".red(), "RED".red().bold(), self.red_score.to_string().red());
+                                println!("{}{}: {}", "|".blue(), "BLU".blue().bold(), self.blue_score.to_string().blue());
                                 self.grid.get_mut_cell(self.blue_deposit_box).unwrap().increment_score();
                             }
                         },
@@ -354,11 +370,11 @@ impl World {
     }
 
     pub fn print_robots(&mut self) {
-        for red_robot in &self.red_team.get_robots() {
-            println!("{:?}", red_robot);
-        }
         for blue_robot in &self.blue_team.get_robots() {
-            println!("{:?}", blue_robot);
+            println!("{}{:?}", "|".blue(), blue_robot);
+        }
+        for red_robot in &self.red_team.get_robots() {
+            println!("{}{:?}", "|".red(), red_robot);
         }
     }
 }
