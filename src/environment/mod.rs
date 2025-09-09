@@ -137,16 +137,18 @@ impl World {
 impl World {
 
     pub fn next_turn(&mut self) {
-        self.make_decisions_and_take_actions(Team::Blue);
-        self.make_decisions_and_take_actions(Team::Red);
+        self.make_decision(Team::Blue);
+        self.make_decision(Team::Red);
+
+        self.take_actions(Team::Blue);
+        self.take_actions(Team::Red);
 
         self.check_pickup_logic();
         self.check_fumble();
         self.check_drop_deposit();
     }
-    pub fn make_decisions_and_take_actions(&mut self, team: Team) {
-        println!("{:?} {}", team, "Robots Decisions".bold());
-        self.pick_up_check.clear();
+    pub fn make_decision(&mut self, team: Team) {
+        println!("{:?} {}", team, "Robots Observations".bold());
         let robot_manager = match team {
             Team::Red => &mut self.red_team,
             Team::Blue => &mut self.blue_team,
@@ -154,14 +156,26 @@ impl World {
         for robot in robot_manager.get_robots() {
             let observations = robot.observable_cells(self.width, self.height);
             robot.observe(&mut self.grid);
+            println!("It can currently observe: {:?}", observations);
+        }
+    }
+
+    pub fn take_actions(&mut self, team: Team) {
+        println!("{:?} {}", team, "Robots Decisions".bold());
+        self.pick_up_check.clear();
+        let robot_manager = match team {
+            Team::Red => &mut self.red_team,
+            Team::Blue => &mut self.blue_team,
+        };
+        for robot in robot_manager.get_robots() {
             let action = robot.make_decision();
             if let Action::PickUp = action {
                 self.pick_up_check.entry(robot.get_coord()).or_insert(Vec::new()).push((robot.get_id(), team));
             }
             println!("{:?} Robot {:?} decided to {:?}", team, robot, action);
-            println!("It can currently observe: {:?}", observations);
             robot.take_action(&action, &mut self.grid);
         }
+
     }
 }
 

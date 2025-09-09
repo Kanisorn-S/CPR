@@ -262,19 +262,31 @@ impl Robot {
         let mut current_coord = self.current_coord;
         match self.facing {
             Direction::Left => {
-                if (current_coord.x == 0) { return observable_cells; }
+                if (current_coord.x == 0) {
+                    self.observable_cells = observable_cells.clone();
+                    return observable_cells;
+                }
                 current_coord.x -= 1
             },
             Direction::Right => {
-                if (current_coord.x == width - 1) { return observable_cells; }
+                if (current_coord.x == width - 1) {
+                    self.observable_cells = observable_cells.clone();
+                    return observable_cells;
+                }
                 current_coord.x += 1
             },
             Direction::Up => {
-                if (current_coord.y == height - 1) { return observable_cells; }
+                if (current_coord.y == height - 1) {
+                    self.observable_cells = observable_cells.clone();
+                    return observable_cells;
+                }
                 current_coord.y += 1
             },
             Direction::Down => {
-                if (current_coord.y == 0) { return observable_cells; }
+                if (current_coord.y == 0) {
+                    self.observable_cells = observable_cells.clone();
+                    return observable_cells;
+                }
                 current_coord.y -= 1
             },
         }
@@ -299,28 +311,40 @@ impl Robot {
                 if (current_coord.y != 0) {
                     observable_cells.push_back(Coord::new(current_coord.x, current_coord.y - 1));
                 }
-                if (current_coord.x == 0) { return observable_cells; }
+                if (current_coord.x == 0) {
+                    self.observable_cells = observable_cells.clone();
+                    return observable_cells;
+                }
                 current_coord.x -= 1
             },
             Direction::Right => {
                 if (current_coord.y != 0) {
                     observable_cells.push_back(Coord::new(current_coord.x, current_coord.y - 1));
                 }
-                if (current_coord.x == width - 1) { return observable_cells; }
+                if (current_coord.x == width - 1) {
+                    self.observable_cells = observable_cells.clone();
+                    return observable_cells;
+                }
                 current_coord.x += 1
             },
             Direction::Up => {
                 if (current_coord.x != 0) {
                     observable_cells.push_back(Coord::new(current_coord.x - 1, current_coord.y));
                 }
-                if (current_coord.y == height - 1) { return observable_cells; }
+                if (current_coord.y == height - 1) {
+                    self.observable_cells = observable_cells.clone();
+                    return observable_cells;
+                }
                 current_coord.y += 1
             },
             Direction::Down => {
                 if (current_coord.x != 0) {
                     observable_cells.push_back(Coord::new(current_coord.x - 1, current_coord.y));
                 }
-                if (current_coord.y == 0) { return observable_cells; }
+                if (current_coord.y == 0) {
+                    self.observable_cells = observable_cells.clone();
+                    return observable_cells;
+                }
                 current_coord.y -= 1
             },
         }
