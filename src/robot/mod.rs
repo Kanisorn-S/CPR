@@ -3,6 +3,7 @@ pub mod manager;
 use std::collections::{LinkedList, HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex};
+use std::io;
 use crate::util::Coord;
 use colored::{ColoredString, Colorize};
 use crate::environment::cell::Cell;
@@ -138,14 +139,27 @@ impl Robot {
 
 // Decision logic 
 impl Robot {
-    pub fn make_decision(&mut self) -> Action {
-        match rand::random_range(5..7) {
-            1 => Action::Turn(Direction::Left),
-            2 => Action::Turn(Direction::Right),
-            3 => Action::Turn(Direction::Up),
-            4 => Action::Turn(Direction::Down),
-            5 => Action::Move,
-            _ => Action::PickUp,
+    pub fn make_decision(&mut self, manual: bool) -> Action {
+        if (manual) {
+            let mut input_string = String::new();
+            io::stdin().read_line(&mut input_string).expect("Failed to read line");
+            match input_string.trim() {
+                "u" => Action::Turn(Direction::Up),
+                "d" => Action::Turn(Direction::Down),
+                "l" => Action::Turn(Direction::Left),
+                "r" => Action::Turn(Direction::Right),
+                "p" => Action::PickUp,
+                _ => Action:: Move,
+            }
+        } else {
+            match rand::random_range(5..7) {
+                1 => Action::Turn(Direction::Left),
+                2 => Action::Turn(Direction::Right),
+                3 => Action::Turn(Direction::Up),
+                4 => Action::Turn(Direction::Down),
+                5 => Action::Move,
+                _ => Action::PickUp,
+            }
         }
     }
 

@@ -13,6 +13,7 @@ use colored::Colorize;
 use crate::robot::manager::{Message, RobotManager};
 
 pub struct World {
+    manual: bool,
     grid: Grid,
     width: usize,
     height: usize,
@@ -27,7 +28,7 @@ pub struct World {
 
 // Constructor and Getters
 impl World {
-    pub fn new(width: usize, height: usize, p_gold: f64, max_gold: u8, n_robots: u8) -> Self {
+    pub fn new(width: usize, height: usize, p_gold: f64, max_gold: u8, n_robots: u8, manual: bool) -> Self {
         let mut grid: Vec<Vec<Cell>> = Vec::new();
         for y in (0..height).rev() {
             let mut row: Vec<Cell> = Vec::new();
@@ -41,6 +42,7 @@ impl World {
         let (blue_team, blue_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Blue);
         let (red_team, red_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Red);
         Self {
+            manual,
             grid,
             width,
             height,
@@ -143,6 +145,7 @@ impl World {
 
         println!();
 
+        self.pick_up_check.clear();
         self.take_actions(Team::Blue);
         println!();
         self.take_actions(Team::Red);
@@ -175,13 +178,12 @@ impl World {
             Team::Red => println!("{}{:?} {}", "|".red(), team, "Robots Decisions".bold()),
             Team::Blue => println!("{}{:?} {}", "|".blue(), team, "Robots Decisions".bold()),
         }
-        self.pick_up_check.clear();
         let robot_manager = match team {
             Team::Red => &mut self.red_team,
             Team::Blue => &mut self.blue_team,
         };
         for robot in robot_manager.get_robots() {
-            let action = robot.make_decision();
+            let action = robot.make_decision(self.manual);
             if let Action::PickUp = action {
                 self.pick_up_check.entry(robot.get_coord()).or_insert(Vec::new()).push((robot.get_id(), team));
             }
