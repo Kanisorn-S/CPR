@@ -425,7 +425,7 @@ impl Debug for Robot {
             Team::Red => {
                 write!(f, "{} is at {:?} facing {:?}", self.id.to_string().red(), self.current_coord, self.facing)?;
                 if self.is_carrying {
-                    write!(f, " is {} with {}", "CARRYING".yellow().bold(), self.pair_id.unwrap().to_string().red().dimmed())
+                    write!(f, " is {} with {}", "CARRYING GOLD".yellow().bold(), self.pair_id.unwrap().to_string().red().dimmed())
                 } else {
                     write!(f, "")
                 }
