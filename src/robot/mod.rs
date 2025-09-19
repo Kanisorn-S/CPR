@@ -152,7 +152,7 @@ impl Robot {
                 _ => Action:: Move,
             }
         } else {
-            match rand::random_range(5..7) {
+            match rand::random_range(1..7) {
                 1 => Action::Turn(Direction::Left),
                 2 => Action::Turn(Direction::Right),
                 3 => Action::Turn(Direction::Up),
