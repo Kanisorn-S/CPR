@@ -33,7 +33,7 @@ impl Debug for Team {
         }
     }
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum Direction {
     Left,
     Right,
@@ -53,6 +53,7 @@ impl Debug for Direction {
 }
 
 
+#[derive(Clone, Copy, PartialEq)]
 pub enum Action {
     Move,
     Turn(Direction),
@@ -75,6 +76,7 @@ pub struct Robot {
     current_coord: Coord,
     facing: Direction,
     is_carrying: bool,
+    was_carrying: bool,
     pair_id: Option<char>,
     coord_history: Vec<Coord>,
     action_history: Vec<Action>,
@@ -102,6 +104,7 @@ impl Robot {
             current_coord,
             facing,
             is_carrying: false,
+            was_carrying: false,
             pair_id: None,
             coord_history,
             action_history: Vec::new(),
@@ -131,6 +134,8 @@ impl Robot {
     pub fn is_carrying(&self) -> bool {
         self.is_carrying
     }
+
+    pub fn was_carrying(&self) -> bool { self.was_carrying }
     pub fn get_pair_id(&self) -> Option<char> {
         self.pair_id
     }
@@ -140,6 +145,9 @@ impl Robot {
 // Decision logic 
 impl Robot {
     pub fn make_decision(&mut self, manual: bool) -> Action {
+        if self.is_carrying {
+            self.was_carrying = true;
+        }
         if (manual) {
             let mut input_string = String::new();
             io::stdin().read_line(&mut input_string).expect("Failed to read line");
@@ -235,6 +243,10 @@ impl Robot {
         }
     }
 
+    pub fn get_latest_action(&self) -> Action {
+        self.action_history.last().unwrap().clone()
+    }
+
 }
 
 // Gold logic 
@@ -245,6 +257,7 @@ impl Robot {
             Team::Blue => println!("{}{} has {} a {} at {:?}", "|".blue(), self.id.to_string().blue().bold(), "DROPPED".on_red().bold().italic(), "GOLD BAR".yellow().bold(), self.coord_history[self.turn - 1]),
         }
         self.is_carrying = false;
+        self.was_carrying = false;
         self.coord_history[self.turn - 1]
     }
 
@@ -254,6 +267,7 @@ impl Robot {
             Team::Blue => println!("{}{} has {}", "|".blue(), self.id.to_string().blue().bold(), "SCORED!".green().bold()),
         }
         self.is_carrying = false;
+        self.was_carrying = false;
     }
 }
 

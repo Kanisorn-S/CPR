@@ -279,7 +279,16 @@ impl World {
                     let partner_coord = robot_pos.remove(&partner_id);
                     match partner_coord {
                         Some(pair_robot) => {
-                            if pair_robot.get_coord() != carrier.get_coord() {
+                            // if pair_robot.get_coord() != carrier.get_coord() {
+                            //     add_gold_coords.push(carrier.drop_gold());
+                            //     pair_robot.drop_gold();
+                            // }
+                            let carrier_latest_action = carrier.get_latest_action();
+                            let pair_latest_action = pair_robot.get_latest_action();
+                            let drop = (carrier_latest_action != pair_latest_action) |
+                                       (carrier_latest_action == Action::PickUp && carrier.was_carrying()) |
+                                       (pair_latest_action == Action::PickUp && pair_robot.was_carrying());
+                            if drop {
                                 add_gold_coords.push(carrier.drop_gold());
                                 pair_robot.drop_gold();
                             }
