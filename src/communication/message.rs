@@ -7,19 +7,23 @@ use crate::util::Coord;
 pub enum MessageType {
   PrepareRequest,
   PrepareResponse,
-  AcceptRequest
+  AcceptRequest,
+  Accepted,
+  Nack
 }
 
 #[derive(PartialEq, Hash, Eq, Clone, Copy)]
 pub struct Message {
-  msg_type: MessageType,
-  id: u32,
-  coord: Coord,
+  pub sender_id: char,
+  pub msg_type: MessageType,
+  pub id: u32,
+  pub coord: Coord,
 }
 
 impl Message {
-  pub fn new(msg_type: MessageType, id: u32, coord: Coord) -> Message {
+  pub fn new(sender_id: char, msg_type: MessageType, id: u32, coord: Coord) -> Message {
     Self {
+      sender_id,
       msg_type,
       id,
       coord,
@@ -96,7 +100,7 @@ impl MessageBoard {
 // Print Functions
 impl Debug for Message {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}: {:?} - {:?}", self.id, self.msg_type, self.coord)
+    write!(f, "{}: {:?} - {:?} from {}", self.id, self.msg_type, self.coord, self.sender_id)
   }
 }
 

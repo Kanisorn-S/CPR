@@ -155,19 +155,21 @@ impl World {
         self.check_fumble();
         self.check_drop_deposit();
 
+        // println!();
+        // self.blue_team.print_message_board_debug();
 
         self.blue_team.update_message_board();
         self.red_team.update_message_board();
 
         println!();
         self.blue_team.print_message_board();
-        self.red_team.print_message_board();
+        // self.red_team.print_message_board();
 
     }
     pub fn make_decision(&mut self, team: Team) {
         match team {
-            Team::Red => println!("{}{:?} {}", "|".red(), team, "Robots Observations".bold()),
-            Team::Blue => println!("{}{:?} {}", "|".blue(), team, "Robots Observations".bold()),
+            Team::Red => {},// println!("{}{:?} {}", "|".red(), team, "Robots Observations".bold()),
+            Team::Blue => {}// println!("{}{:?} {}", "|".blue(), team, "Robots Observations".bold()),
         }
         let robot_manager = match team {
             Team::Red => &mut self.red_team,
@@ -177,16 +179,16 @@ impl World {
             let observations = robot.observable_cells(self.width, self.height);
             robot.observe(&mut self.grid);
             match team {
-                Team::Red => println!("{}    It can currently observe: {:?}", "|".red(), observations),
-                Team::Blue => println!("{}    It can currently observe: {:?}", "|".blue(), observations)
+                Team::Red => {}, //println!("{}    It can currently observe: {:?}", "|".red(), observations),
+                Team::Blue => {}, //println!("{}    It can currently observe: {:?}", "|".blue(), observations)
             }
         }
     }
 
     pub fn take_actions(&mut self, team: Team) {
         match team {
-            Team::Red => println!("{}{:?} {}", "|".red(), team, "Robots Decisions".bold()),
-            Team::Blue => println!("{}{:?} {}", "|".blue(), team, "Robots Decisions".bold()),
+            Team::Red => {}, // println!("{}{:?} {}", "|".red(), team, "Robots Decisions".bold()),
+            Team::Blue => {}, // println!("{}{:?} {}", "|".blue(), team, "Robots Decisions".bold()),
         }
         let robot_manager = match team {
             Team::Red => &mut self.red_team,
@@ -198,8 +200,8 @@ impl World {
                 self.pick_up_check.entry(robot.get_coord()).or_insert(Vec::new()).push((robot.get_id(), team));
             }
             match team {
-                Team::Red => println!("{}{:?} Robot {:?} decided to {:?}", "|".red(), team, robot, action),
-                Team::Blue => println!("{}{:?} Robot {:?} decided to {:?}", "|".blue(), team, robot, action)
+                Team::Red => {}, // println!("{}{:?} Robot {:?} decided to {:?}", "|".red(), team, robot, action),
+                Team::Blue => {}, // println!("{}{:?} Robot {:?} decided to {:?}", "|".blue(), team, robot, action)
             }
             robot.take_action(&action, &mut self.grid);
         }
@@ -230,14 +232,14 @@ impl World {
                             let picked = self.red_team.pickup_gold(reds[0], reds[1]);
                             if picked {
                                 self.grid.get_mut_cell(*coord).unwrap().remove_gold();
-                                println!("{}{} and {} has {} picked up a {}", "|".red(), reds[0].to_string().red().bold(), reds[1].to_string().red().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
+                                // println!("{}{} and {} has {} picked up a {}", "|".red(), reds[0].to_string().red().bold(), reds[1].to_string().red().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
                             }
                         }
                         if blue_is_able_to_pick {
                             let picked = self.blue_team.pickup_gold(blues[0], blues[1]);
                             if picked {
                                 self.grid.get_mut_cell(*coord).unwrap().remove_gold();
-                                println!("{}{} and {} has {} picked up a {}", "|".blue(), blues[0].to_string().blue().bold(), blues[1].to_string().blue().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
+                                // println!("{}{} and {} has {} picked up a {}", "|".blue(), blues[0].to_string().blue().bold(), blues[1].to_string().blue().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
                             }
                         }
                     }
@@ -328,8 +330,8 @@ impl World {
                                 carrier.score_gold();
                                 pair_robot.score_gold();
                                 self.red_score += 1;
-                                println!("{}{}: {}", "|".red(), "RED".red().bold(), self.red_score.to_string().red());
-                                println!("{}{}: {}", "|".blue(), "BLU".blue().bold(), self.blue_score.to_string().blue());
+                                // println!("{}{}: {}", "|".red(), "RED".red().bold(), self.red_score.to_string().red());
+                                // println!("{}{}: {}", "|".blue(), "BLU".blue().bold(), self.blue_score.to_string().blue());
                                 self.grid.get_mut_cell(self.red_deposit_box).unwrap().increment_score();
                             }
                         },
@@ -353,8 +355,8 @@ impl World {
                                 carrier.score_gold();
                                 pair_robot.score_gold();
                                 self.blue_score += 1;
-                                println!("{}{}: {}", "|".red(), "RED".red().bold(), self.red_score.to_string().red());
-                                println!("{}{}: {}", "|".blue(), "BLU".blue().bold(), self.blue_score.to_string().blue());
+                                // println!("{}{}: {}", "|".red(), "RED".red().bold(), self.red_score.to_string().red());
+                                // println!("{}{}: {}", "|".blue(), "BLU".blue().bold(), self.blue_score.to_string().blue());
                                 self.grid.get_mut_cell(self.blue_deposit_box).unwrap().increment_score();
                             }
                         },
