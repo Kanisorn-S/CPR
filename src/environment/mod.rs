@@ -10,7 +10,8 @@ use crate::robot::{Action, Team};
 use crate::robot::Direction::{Left, Right, Up, Down};
 use crate::robot::Robot;
 use colored::Colorize;
-use crate::robot::manager::{Message, RobotManager};
+use crate::communication::message::{MessageBoard, MessageBox};
+use crate::robot::manager::{RobotManager};
 
 pub struct World {
     manual: bool,
@@ -110,16 +111,16 @@ impl World {
         (red_deposit_box, blue_deposit_box)
     }
 
-    fn spawn_robots(width: usize, height: usize, grid: &mut Grid, n_robots: u8, team: Team) -> (HashMap<char, Robot>, Arc<Mutex<HashMap<char, HashSet<Message>>>>) {
+    fn spawn_robots(width: usize, height: usize, grid: &mut Grid, n_robots: u8, team: Team) -> (HashMap<char, Robot>, Arc<Mutex<MessageBoard>>) {
         let mut robots: HashMap<char, Robot> = HashMap::new();
-        let message_board: Arc<Mutex<HashMap<char, HashSet<Message>>>> = Arc::new(Mutex::new(HashMap::new()));
+        let message_board: Arc<Mutex<MessageBoard>> = Arc::new(Mutex::new(MessageBoard::new()));
         let first_id = match team {
             Team::Red => b'A',
             Team::Blue => b'a',
         };
         for i in 0..n_robots {
             let id = (first_id + i) as char;
-            message_board.lock().unwrap().insert(id, HashSet::new());
+            message_board.lock().unwrap().insert(id, MessageBox::new());
             let current_pos = Coord::random(0..width, 0..height);
             let facing = match rand::random_range(0..4) {
                 0 => Left,
@@ -153,6 +154,15 @@ impl World {
         self.check_pickup_logic();
         self.check_fumble();
         self.check_drop_deposit();
+
+
+        self.blue_team.update_message_board();
+        self.red_team.update_message_board();
+
+        println!();
+        self.blue_team.print_message_board();
+        self.red_team.print_message_board();
+
     }
     pub fn make_decision(&mut self, team: Team) {
         match team {
@@ -279,10 +289,6 @@ impl World {
                     let partner_coord = robot_pos.remove(&partner_id);
                     match partner_coord {
                         Some(pair_robot) => {
-                            // if pair_robot.get_coord() != carrier.get_coord() {
-                            //     add_gold_coords.push(carrier.drop_gold());
-                            //     pair_robot.drop_gold();
-                            // }
                             let carrier_latest_action = carrier.get_latest_action();
                             let pair_latest_action = pair_robot.get_latest_action();
                             let drop = (carrier_latest_action != pair_latest_action) |

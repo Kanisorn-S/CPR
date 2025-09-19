@@ -8,8 +8,8 @@ const HEIGHT: usize = 3;
 const P_GOLD: f64 = 0.5;
 const MAX_GOLD: u8 = 5;
 const N_ROBOTS: u8 = 2;
-const TURNS: u8 = 200;
-const MANUAL: bool = true;
+const TURNS: u8 = 2;
+const MANUAL: bool = false;
 
 fn main() {
     let mut world = World::new(WIDTH, HEIGHT, P_GOLD, MAX_GOLD, N_ROBOTS, MANUAL);

@@ -6,9 +6,9 @@ use std::sync::{Arc, Mutex};
 use std::io;
 use crate::util::Coord;
 use colored::{ColoredString, Colorize};
+use crate::communication::message::{Message, MessageBoard, MessageType};
 use crate::environment::cell::Cell;
 use crate::environment::grid::Grid;
-use crate::robot::manager::Message;
 
 #[derive(Copy, Clone)]
 pub enum Team {
@@ -87,7 +87,7 @@ pub struct Robot {
     knowledge_base: HashMap<Coord, Cell>,
 
     // Communication
-    message_board: Arc<Mutex<HashMap<char, HashSet<Message>>>>,
+    message_board: Arc<Mutex<MessageBoard>>,
     max_id: u32,
     coord_to_send: Option<Coord>,
     increment: u32,
@@ -95,7 +95,7 @@ pub struct Robot {
 
 // Constructors and getters
 impl Robot {
-    pub fn new(id: char, team: Team, current_coord: Coord, facing: Direction, message_board: Arc<Mutex<HashMap<char, HashSet<Message>>>>) -> Self {
+    pub fn new(id: char, team: Team, current_coord: Coord, facing: Direction, message_board: Arc<Mutex<MessageBoard>>) -> Self {
         let mut coord_history: Vec<Coord> = Vec::new();
         coord_history.push(current_coord);
         Robot {
@@ -416,17 +416,18 @@ impl Robot {
     fn send(&mut self, message: Message, receiver_ids: Vec<char>) {
         let mut message_board_guard = self.message_board.lock().unwrap();
         for receiver_id in receiver_ids {
-            message_board_guard.entry(receiver_id).or_default().insert(message);
+            message_board_guard.get_message_board().entry(receiver_id).or_default().send_messages(message);
         }
     }
 
     fn receive(&self) -> Option<Message> {
         let mut message_board_guard = self.message_board.lock().unwrap();
         let mut message_to_return = None;
-        if let Some(messages) = message_board_guard.get_mut(&self.id) {
-            let random_message = messages.iter().next().unwrap().clone();
-            messages.remove(&random_message);
-            message_to_return = Some(random_message);
+        if let Some(message_box) = message_board_guard.get_message_board().get_mut(&self.id) {
+            // let random_message = messages.iter().next().unwrap().clone();
+            // messages.remove(&random_message);
+            // message_to_return = Some(random_message);
+            message_to_return = message_box.retrieve_messages()
         }
         message_to_return
     }

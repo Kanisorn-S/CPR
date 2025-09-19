@@ -1,31 +1,18 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::sync::{Arc, Mutex};
+use crate::communication::message::MessageBoard;
 use crate::robot::{Robot, Team};
-use crate::util::Coord;
+
 
 pub struct RobotManager {
     team: Team,
     robots: HashMap<char, Robot>,
-    message_board: Arc<Mutex<HashMap<char, HashSet<Message>>>>,
-}
-
-#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
-pub enum MessageType {
-    PrepareRequest,
-    PrepareResponse,
-    AcceptRequest
-}
-
-#[derive(PartialEq, Hash, Eq, Clone, Copy, Debug)]
-pub struct Message {
-    msg_type: MessageType,
-    id: u32,
-    coord: Coord,
+    message_board: Arc<Mutex<MessageBoard>>,
 }
 
 // Constructor and getters
 impl RobotManager {
-    pub fn new(team: Team, robots: HashMap<char, Robot>, message_board: Arc<Mutex<HashMap<char, HashSet<Message>>>>) -> RobotManager {
+    pub fn new(team: Team, robots: HashMap<char, Robot>, message_board: Arc<Mutex<MessageBoard>>) -> RobotManager {
         RobotManager {
             team,
             robots,
@@ -56,7 +43,7 @@ impl RobotManager {
     }
 }
 
-// Robot Actions logic
+// Robot Actions Logic
 impl RobotManager {
     pub fn pickup_gold(&mut self, id_1: char, id_2: char) -> bool {
         let robot_1 = self.get_robot_by_id(id_1).unwrap();
@@ -73,4 +60,40 @@ impl RobotManager {
         true
     }
 
+}
+
+// Robot Communication Logic
+impl RobotManager {
+    pub fn update_message_board(&mut self) {
+        let mut message_board_guard = self.message_board.lock().unwrap();
+        message_board_guard.update();
+    }
+}
+
+// Print Functions
+impl RobotManager {
+    pub fn print_message_board(&self) {
+        match self.team {
+            Team::Blue => {
+                println!("{} Message Board", self.team.style("BLU".to_string()));
+                println!("{}", self.message_board.lock().unwrap());
+            },
+            Team::Red => {
+                println!("{} Message Board", self.team.style("RED".to_string()));
+                println!("{}", self.message_board.lock().unwrap());
+            }
+        }
+    }
+    pub fn print_message_board_debug(&self) {
+        match self.team {
+            Team::Blue => {
+                println!("{} Message Board", self.team.style("BLU".to_string()));
+                println!("{:?}", self.message_board.lock().unwrap());
+            },
+            Team::Red => {
+                println!("{} Message Board", self.team.style("RED".to_string()));
+                println!("{:?}", self.message_board.lock().unwrap());
+            }
+        }
+    }
 }
