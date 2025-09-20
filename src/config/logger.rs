@@ -4,6 +4,7 @@ const ROBOT_OBSERVATION: bool = false;
 const ROBOT_DECISION: bool = false;
 const MESSAGE_BOARD: bool = false;
 const ROBOT_KB: bool = false;
+const ROBOT_MESSAGE: bool = false;
 
 pub struct LoggerConfig {
     pub current_grid: bool,
@@ -12,6 +13,7 @@ pub struct LoggerConfig {
     pub robot_decision: bool,
     pub message_board: bool,
     pub robot_kb: bool,
+    pub robot_message: bool,
 }
 
 impl LoggerConfig {
@@ -23,6 +25,7 @@ impl LoggerConfig {
             robot_decision: ROBOT_DECISION,
             message_board: MESSAGE_BOARD,
             robot_kb: ROBOT_KB,
+            robot_message: ROBOT_MESSAGE,
         }
     }
 }

@@ -467,12 +467,14 @@ impl Robot {
         if let Some(message_box) = message_board_guard.get_message_board().get_mut(&self.id) {
             message_to_return = message_box.retrieve_messages()
         }
-        match message_to_return {
-            Some(message) => {
-                println!("Robot {} received {:?}", self.team.style(self.id.to_string()), message);
-            },
-            None => {
-                println!("Robot {} received None", self.team.style(self.id.to_string()));
+        if (self.logger_config.robot_message) {
+            match message_to_return {
+                Some(message) => {
+                    println!("Robot {} received {:?}", self.team.style(self.id.to_string()), message);
+                },
+                None => {
+                    println!("Robot {} received None", self.team.style(self.id.to_string()));
+                }
             }
         }
         message_to_return
