@@ -7,6 +7,7 @@ use std::io;
 use crate::util::Coord;
 use colored::{ColoredString, Colorize};
 use crate::communication::message::{Message, MessageBoard, MessageType};
+use crate::config::logger::LoggerConfig;
 use crate::environment::cell::Cell;
 use crate::environment::grid::Grid;
 
@@ -91,6 +92,9 @@ pub struct Robot {
     max_id: u32,
     coord_to_send: Option<Coord>,
     increment: u32,
+    
+    // Configurations
+    logger_config: LoggerConfig,
 }
 
 // Constructors and getters
@@ -115,6 +119,7 @@ impl Robot {
             max_id: 0,
             coord_to_send: None,
             increment: id as u32,
+            logger_config: LoggerConfig::new(),
         }
     }
 
@@ -279,10 +284,11 @@ impl Robot {
             let observed_cell = grid.get_cell(*observable_cell).unwrap();
             self.knowledge_base.entry(observed_cell.coord).or_insert(observed_cell);
         }
-        match self.team {
-            Team::Red => println!("{}{:?} Robot {} Current KB: {:?}", "|".red(), self.team, self.id.to_string().red(), self.knowledge_base),
-            Team::Blue => println!("{}{:?} Robot {} Current KB: {:?}", "|".blue(), self.team, self.id.to_string().blue(), self.knowledge_base),
-
+        if (self.logger_config.robot_kb) {
+            match self.team {
+                Team::Red => println!("{}{:?} Robot {} Current KB: {:?}", "|".red(), self.team, self.id.to_string().red(), self.knowledge_base),
+                Team::Blue => println!("{}{:?} Robot {} Current KB: {:?}", "|".blue(), self.team, self.id.to_string().blue(), self.knowledge_base),
+            }
         }
     }
     pub fn observable_cells(&mut self, width: usize, height: usize) -> LinkedList<Coord> {

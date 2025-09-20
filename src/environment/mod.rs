@@ -11,6 +11,7 @@ use crate::robot::Direction::{Left, Right, Up, Down};
 use crate::robot::Robot;
 use colored::Colorize;
 use crate::communication::message::{MessageBoard, MessageBox};
+use crate::config::logger::LoggerConfig;
 use crate::robot::manager::{RobotManager};
 
 pub struct World {
@@ -25,6 +26,8 @@ pub struct World {
     pick_up_check: HashMap<Coord, Vec<(char, Team)>>,
     red_team: RobotManager,
     blue_team: RobotManager,
+    
+    logger_config: LoggerConfig,
 }
 
 // Constructor and Getters
@@ -54,6 +57,7 @@ impl World {
             pick_up_check: HashMap::new(),
             red_team: RobotManager::new(Team::Red, red_team, red_message_board),
             blue_team: RobotManager::new(Team::Blue, blue_team, blue_message_board),
+            logger_config: LoggerConfig::new(),
         }
     }
 
@@ -159,15 +163,19 @@ impl World {
         self.blue_team.update_message_board();
         self.red_team.update_message_board();
 
-        println!();
-        self.blue_team.print_message_board();
-        self.red_team.print_message_board();
+        if (self.logger_config.message_board) {
+            println!();
+            self.blue_team.print_message_board();
+            self.red_team.print_message_board();
+        }
 
     }
     pub fn make_decision(&mut self, team: Team) {
-        match team {
-            Team::Red => println!("{}{:?} {}", "|".red(), team, "Robots Observations".bold()),
-            Team::Blue => println!("{}{:?} {}", "|".blue(), team, "Robots Observations".bold()),
+        if (self.logger_config.robot_observation) {
+            match team {
+                Team::Red => println!("{}{:?} {}", "|".red(), team, "Robots Observations".bold()),
+                Team::Blue => println!("{}{:?} {}", "|".blue(), team, "Robots Observations".bold()),
+            }
         }
         let robot_manager = match team {
             Team::Red => &mut self.red_team,
@@ -176,17 +184,21 @@ impl World {
         for robot in robot_manager.get_robots() {
             let observations = robot.observable_cells(self.width, self.height);
             robot.observe(&mut self.grid);
-            match team {
-                Team::Red => println!("{}    It can currently observe: {:?}", "|".red(), observations),
-                Team::Blue => println!("{}    It can currently observe: {:?}", "|".blue(), observations)
+            if (self.logger_config.robot_observation) {
+                match team {
+                    Team::Red => println!("{}    It can currently observe: {:?}", "|".red(), observations),
+                    Team::Blue => println!("{}    It can currently observe: {:?}", "|".blue(), observations)
+                }
             }
         }
     }
 
     pub fn take_actions(&mut self, team: Team) {
-        match team {
-            Team::Red => println!("{}{:?} {}", "|".red(), team, "Robots Decisions".bold()),
-            Team::Blue => println!("{}{:?} {}", "|".blue(), team, "Robots Decisions".bold()),
+        if (self.logger_config.robot_decision) {
+            match team {
+                Team::Red => println!("{}{:?} {}", "|".red(), team, "Robots Decisions".bold()),
+                Team::Blue => println!("{}{:?} {}", "|".blue(), team, "Robots Decisions".bold()),
+            }
         }
         let robot_manager = match team {
             Team::Red => &mut self.red_team,
@@ -197,9 +209,11 @@ impl World {
             if let Action::PickUp = action {
                 self.pick_up_check.entry(robot.get_coord()).or_insert(Vec::new()).push((robot.get_id(), team));
             }
-            match team {
-                Team::Red => println!("{}{:?} Robot {:?} decided to {:?}", "|".red(), team, robot, action),
-                Team::Blue => println!("{}{:?} Robot {:?} decided to {:?}", "|".blue(), team, robot, action)
+            if (self.logger_config.robot_decision) {
+                match team {
+                    Team::Red => println!("{}{:?} Robot {:?} decided to {:?}", "|".red(), team, robot, action),
+                    Team::Blue => println!("{}{:?} Robot {:?} decided to {:?}", "|".blue(), team, robot, action)
+                }
             }
             robot.take_action(&action, &mut self.grid);
         }
