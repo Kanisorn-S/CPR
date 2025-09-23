@@ -12,21 +12,27 @@ pub enum MessageType {
   Nack
 }
 
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+pub enum MessageContent {
+  Coord(Coord),
+  Pair(char, char),
+}
+
 #[derive(PartialEq, Hash, Eq, Clone, Copy)]
 pub struct Message {
   pub sender_id: char,
   pub msg_type: MessageType,
   pub id: u32,
-  pub coord: Coord,
+  pub message_content: MessageContent,
 }
 
 impl Message {
-  pub fn new(sender_id: char, msg_type: MessageType, id: u32, coord: Coord) -> Message {
+  pub fn new(sender_id: char, msg_type: MessageType, id: u32, message_content: MessageContent) -> Message {
     Self {
       sender_id,
       msg_type,
       id,
-      coord,
+      message_content,
     }
   }
 }
@@ -98,9 +104,23 @@ impl MessageBoard {
 }
 
 // Print Functions
+impl Debug for MessageContent {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    match self {
+      MessageContent::Pair(a, b) => {
+        write!(f, "Pair {} {}", a, b)
+      },
+      MessageContent::Coord(coord) => {
+        write!(f, "{:?}", coord)
+      }
+    }
+  }
+}
+
+
 impl Debug for Message {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}: {:?} - {:?} from {}", self.id, self.msg_type, self.coord, self.sender_id)
+    write!(f, "{}: {:?} - {:?} from {}", self.id, self.msg_type, self.message_content, self.sender_id)
   }
 }
 

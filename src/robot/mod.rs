@@ -7,7 +7,7 @@ use std::io;
 use std::thread::current;
 use crate::util::Coord;
 use colored::{ColoredString, Colorize};
-use crate::communication::message::{Message, MessageBoard, MessageType};
+use crate::communication::message::{Message, MessageBoard, MessageContent, MessageType};
 use crate::config::logger::LoggerConfig;
 use crate::environment::cell::Cell;
 use crate::environment::grid::Grid;
@@ -138,7 +138,7 @@ impl Robot {
                 id,
                 MessageType::PrepareRequest,
                 id as u32,
-                current_coord,
+                MessageContent::Coord(current_coord),
             )),
             receiver_ids: make_vec(n_robots, id, team),
             promise_count: 0,
@@ -480,9 +480,16 @@ impl Robot {
         message_to_return
     }
 
-    fn set_consensus_coord(&mut self, consensus_coord: Coord) {
-        self.consensus_coord = Some(consensus_coord);
-        println!("Robot {} has Consensus coord: {:?}", self.team.style(self.id.to_string()), self.consensus_coord);
+    fn set_consensus(&mut self, consensus: MessageContent) {
+        match consensus {
+            MessageContent::Coord(coord) => {
+                self.consensus_coord = Some(coord);
+                println!("Robot {} has Consensus coord: {:?}", self.team.style(self.id.to_string()), self.consensus_coord);
+            },
+            MessageContent::Pair(a, b) => {
+                
+            }
+        }
     }
 
     fn paxos_receiver(&mut self, received_message: Option<Message>) {
@@ -498,14 +505,14 @@ impl Robot {
                                         promised_message.sender_id,
                                         promised_message.msg_type,
                                         message.id,
-                                        promised_message.coord,
+                                        promised_message.message_content,
                                     ));
                                     println!("{:?}", self.promised_message);
                                     let piggyback_msg = Message::new(
                                         self.id,
                                         MessageType::PrepareResponse,
                                         promised_message.id,
-                                        promised_message.coord,
+                                        promised_message.message_content,
                                     );
                                     self.send(piggyback_msg, vec![message.sender_id]);
                                 } else {
@@ -524,7 +531,7 @@ impl Robot {
                                     self.id,
                                     MessageType::PrepareResponse,
                                     message.id,
-                                    message.coord,
+                                    message.message_content,
                                 );
                                 self.send(promised, vec![message.sender_id]);
                             }
@@ -536,13 +543,13 @@ impl Robot {
                                 println!("Promised Message: {:?}", promised_message);
                                 println!("Received Message: {:?}", message);
                                 if (promised_message.id <= message.id) {
-                                    self.set_consensus_coord(message.coord);
+                                    self.set_consensus(message.message_content);
                                     self.promised_message = Some(message);
                                     let accepted_msg = Message::new(
                                         self.id,
                                         MessageType::Accepted,
                                         message.id,
-                                        message.coord,
+                                        message.message_content,
                                     );
                                     self.send(accepted_msg, vec![message.sender_id]);
                                 } else {
@@ -569,7 +576,7 @@ impl Robot {
                                     self.id,
                                     MessageType::AcceptRequest,
                                     message_to_send.id,
-                                    message_to_send.coord,
+                                    message_to_send.message_content,
                                 );
                                 self.send(accept_request_msg, self.receiver_ids.clone());
                             }
@@ -583,7 +590,7 @@ impl Robot {
                                     self.id,
                                     MessageType::AcceptRequest,
                                     message_to_send.id,
-                                    message.coord
+                                    message.message_content,
                                 );
                                 self.message_to_send = Some(new_message_to_send);
                             }
@@ -598,18 +605,18 @@ impl Robot {
                     MessageType::Accepted => {
                         self.accept_count += 1;
                         if (self.accept_count > self.majority) {
-                            self.set_consensus_coord(message.coord);
+                            self.set_consensus(message.message_content);
                             self.promised_message = Some(message);
                         }
                     },
                     MessageType::Nack => {
                         self.max_id_seen = message.id;
-                        let Message { coord, .. } = self.message_to_send.unwrap();
+                        let Message { message_content, .. } = self.message_to_send.unwrap();
                         let new_message_to_send = Message::new(
                             self.id,
                             MessageType::PrepareRequest,
                             self.max_id_seen + self.increment,
-                            coord,
+                            message_content,
                         );
                         self.message_to_send = Some(new_message_to_send);
                         self.send(new_message_to_send, self.receiver_ids.clone());
