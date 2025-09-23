@@ -113,10 +113,11 @@ pub struct Robot {
     send_target: bool,
     local_cluster: Vec<char>,
     not_received_simple: u8,
+    accepted: bool,
 
     // Move Planning
     planned_actions: Vec<Action>,
-    
+
     // Configurations
     logger_config: LoggerConfig,
 }
@@ -165,6 +166,7 @@ impl Robot {
             send_target: false,
             local_cluster: Vec::new(),
             not_received_simple: n_robots - 1,
+            accepted: false,
             planned_actions: Vec::new(),
             logger_config: LoggerConfig::new(),
         }
@@ -349,7 +351,7 @@ impl Robot {
 impl Robot {
 
     pub fn observe(&mut self, grid: &mut Grid) {
-        let mut target = self.current_coord;
+        // let mut target = self.current_coord;
         for observable_cell in self.observable_cells.iter() {
             let observed_cell = grid.get_cell(*observable_cell).unwrap();
             if observed_cell.get_gold_amount().is_some() && !self.send_target {
@@ -365,12 +367,12 @@ impl Robot {
                 }
             }
             self.knowledge_base.entry(observed_cell.coord).or_insert(observed_cell);
-            target = observed_cell.coord;
+            // target = observed_cell.coord;
         }
-        if (self.turn == 0) {
-            self.plan_actions_to_move_to(target);
-            println!("Plan to move to {:?}: {:?}", target, self.planned_actions);
-        }
+        // if (self.turn == 0) {
+        //     self.plan_actions_to_move_to(target);
+        //     println!("Plan to move to {:?}: {:?}", target, self.planned_actions);
+        // }
         if !self.send_target {
             if self.target_gold.is_none() {
                 let message = Message::new(
@@ -557,6 +559,10 @@ impl Robot {
                 self.consensus_pair = Some((a, b));
                 println!("Robot {} has Consensus pair: {:?}", self.team.style(self.id.to_string()), self.consensus_pair);
                 self.set_consensus(MessageContent::Coord(Some(self.target_gold.unwrap())));
+                if (self.id == a || self.id == b) && self.planned_actions.is_empty() {
+                    self.plan_actions_to_move_to(self.target_gold.unwrap());
+                    println!("Plan to move to {:?}: {:?}", self.target_gold.unwrap(), self.planned_actions);
+                }
             },
             _ => {}
         }
@@ -612,7 +618,8 @@ impl Robot {
                             Some(promised_message) => {
                                 println!("Promised Message: {:?}", promised_message);
                                 println!("Received Message: {:?}", message);
-                                if (promised_message.id <= message.id) {
+                                if (promised_message.id <= message.id && !self.accepted) {
+                                    self.accepted = true;
                                     self.set_consensus(message.message_content);
                                     self.promised_message = Some(message);
                                     let accepted_msg = Message::new(
