@@ -3,17 +3,20 @@ extern crate CPR;
 use CPR::environment::{World};
 use colored::Colorize;
 use CPR::config::logger::LoggerConfig;
+use CPR::config::Config;
 
-const WIDTH: usize = 3;
-const HEIGHT: usize = 3;
-const P_GOLD: f64 = 0.5;
-const MAX_GOLD: u8 = 5;
-const N_ROBOTS: u8 = 2;
-const TURNS: u8 = 2;
-const MANUAL: bool = false;
 
 fn main() {
-    let mut world = World::new(WIDTH, HEIGHT, P_GOLD, MAX_GOLD, N_ROBOTS, MANUAL);
+    let Config {
+        width,
+        height,
+        p_gold,
+        max_gold,
+        n_robots,
+        manual,
+        turns,
+    } = Config::new();
+    let mut world = World::new(width, height, p_gold, max_gold, n_robots, manual);
     let LoggerConfig {
         current_grid,
         robot_status,
@@ -22,7 +25,7 @@ fn main() {
     println!("{}", "Initial Grid".bold());
     world.print_grid();
     println!("{}", "-".repeat(100).bold());
-    for i in 0..TURNS {
+    for i in 0..turns {
         println!("{} {}", "TURN".bold(), i.to_string().bold());
         if (current_grid) {
             println!("{}", "Current Grid".bold());

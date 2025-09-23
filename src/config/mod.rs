@@ -5,8 +5,8 @@ const WIDTH: usize = 3;
 const HEIGHT: usize = 3;
 const P_GOLD: f64 = 0.5;
 const MAX_GOLD: u8 = 5;
-const N_ROBOTS: u8 = 3;
-const TURNS: u8 = 20;
+const N_ROBOTS: u8 = 1;
+const TURNS: u8 = 5;
 const MANUAL: bool = false;
 pub struct Config {
     pub width: usize,
