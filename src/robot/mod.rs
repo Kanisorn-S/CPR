@@ -113,6 +113,9 @@ pub struct Robot {
     send_target: bool,
     local_cluster: Vec<char>,
     not_received_simple: u8,
+
+    // Move Planning
+    planned_actions: Vec<Action>,
     
     // Configurations
     logger_config: LoggerConfig,
@@ -162,6 +165,7 @@ impl Robot {
             send_target: false,
             local_cluster: Vec::new(),
             not_received_simple: n_robots - 1,
+            planned_actions: Vec::new(),
             logger_config: LoggerConfig::new(),
         }
     }
@@ -227,6 +231,8 @@ impl Robot {
                 "p" => Action::PickUp,
                 _ => Action:: Move,
             }
+        } else if !self.planned_actions.is_empty() {
+            self.planned_actions.remove(0)
         } else {
             match rand::random_range(1..5) {
                 1 => Action::Turn(Direction::Left),
@@ -343,6 +349,7 @@ impl Robot {
 impl Robot {
 
     pub fn observe(&mut self, grid: &mut Grid) {
+        let mut target = self.current_coord;
         for observable_cell in self.observable_cells.iter() {
             let observed_cell = grid.get_cell(*observable_cell).unwrap();
             if observed_cell.get_gold_amount().is_some() && !self.send_target {
@@ -358,6 +365,11 @@ impl Robot {
                 }
             }
             self.knowledge_base.entry(observed_cell.coord).or_insert(observed_cell);
+            target = observed_cell.coord;
+        }
+        if (self.turn == 0) {
+            self.plan_actions_to_move_to(target);
+            println!("Plan to move to {:?}: {:?}", target, self.planned_actions);
         }
         if !self.send_target {
             if self.target_gold.is_none() {
@@ -697,6 +709,65 @@ impl Robot {
                 }
             },
             None => ()
+        }
+    }
+}
+
+// Move Planning
+impl Robot {
+    pub fn plan_actions_to_move_to(&mut self, target: Coord) {
+        let current = self.current_coord;
+        let travel_x = target.x as i32 - current.x as i32;
+        let travel_y = target.y as i32 - current.y as i32;
+
+        let at_x = travel_x == 0;
+        let at_y = travel_y == 0;
+
+        let facing_x;
+        let facing_y;
+        if travel_x > 0 {
+            facing_x = Direction::Right;
+        } else {
+            facing_x = Direction::Left;
+        }
+        if travel_y > 0 {
+            facing_y = Direction::Up;
+        } else {
+            facing_y = Direction::Down;
+        }
+
+        if (self.facing == facing_x) {
+            if !at_x {
+                self.plan_move(travel_x.abs());
+            }
+            if !at_y {
+                self.planned_actions.push(Action::Turn(facing_y));
+                self.plan_move(travel_y.abs());
+            }
+        } else if (self.facing == facing_y) {
+            if !at_y {
+                self.plan_move(travel_y.abs());
+            }
+            if !at_x {
+                self.planned_actions.push(Action::Turn(facing_x));
+                self.plan_move(travel_x.abs());
+            }
+        } else {
+            if !at_x {
+                self.planned_actions.push(Action::Turn(facing_x));
+                self.plan_move(travel_x.abs());
+            }
+            if !at_y {
+                self.planned_actions.push(Action::Turn(facing_y));
+                self.plan_move(travel_y.abs());
+            }
+        }
+
+    }
+
+    fn plan_move(&mut self, distance: i32) {
+        for _ in 0..distance {
+            self.planned_actions.push(Action::Move);
         }
     }
 }

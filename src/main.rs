@@ -7,7 +7,15 @@ use CPR::config::logger::LoggerConfig;
 
 
 fn main() {
-    let Config { width, height, p_gold, max_gold, n_robots, manual, turns} = Config::new();
+    let Config {
+        width,
+        height,
+        p_gold,
+        max_gold,
+        n_robots,
+        manual,
+        turns,
+    } = Config::new();
     let mut world = World::new(width, height, p_gold, max_gold, n_robots, manual);
     let LoggerConfig {
         current_grid,
