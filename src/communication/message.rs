@@ -9,12 +9,13 @@ pub enum MessageType {
   PrepareResponse,
   AcceptRequest,
   Accepted,
-  Nack
+  Nack,
+  Simple,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub enum MessageContent {
-  Coord(Coord),
+  Coord(Option<Coord>),
   Pair(char, char),
 }
 

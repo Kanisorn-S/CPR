@@ -104,6 +104,12 @@ pub struct Robot {
     accept_count: u8,
     majority: u8,
     increment: u32,
+
+    target_gold: Option<Coord>,
+    max_gold_seen: u8,
+    send_target: bool,
+    local_cluster: Vec<char>,
+    not_received_simple: u8,
     
     // Configurations
     logger_config: LoggerConfig,
@@ -138,7 +144,7 @@ impl Robot {
                 id,
                 MessageType::PrepareRequest,
                 id as u32,
-                MessageContent::Coord(current_coord),
+                MessageContent::Coord(Some(current_coord)),
             )),
             receiver_ids: make_vec(n_robots, id, team),
             promise_count: 0,
@@ -146,6 +152,11 @@ impl Robot {
             accept_count: 0,
             majority: n_robots / 2,
             increment: id as u32,
+            target_gold: None,
+            max_gold_seen: 0,
+            send_target: false,
+            local_cluster: Vec::new(),
+            not_received_simple: n_robots,
             logger_config: LoggerConfig::new(),
         }
     }
@@ -184,9 +195,9 @@ impl Robot {
         if self.is_carrying {
             self.was_carrying = true;
         }
-        if (self.turn == 0) {
-            self.send(self.message_to_send.unwrap(), self.get_receiver_ids());
-        }
+        // if (self.turn == 0) {
+        //     self.send(self.message_to_send.unwrap(), self.get_receiver_ids());
+        // }
         self.paxos_receiver(self.receive());
         if (manual) {
             let mut input_string = String::new();
@@ -317,7 +328,33 @@ impl Robot {
     pub fn observe(&mut self, grid: &mut Grid) {
         for observable_cell in self.observable_cells.iter() {
             let observed_cell = grid.get_cell(*observable_cell).unwrap();
+            if observed_cell.get_gold_amount().is_some() && !self.send_target {
+                if observed_cell.get_gold_amount().unwrap() > self.max_gold_seen {
+                    self.max_gold_seen = observed_cell.get_gold_amount().unwrap();
+                    self.target_gold = Some(observed_cell.coord);
+                    self.message_to_send = Some(Message::new(
+                        self.id,
+                        MessageType::Simple,
+                        self.id as u32,
+                        MessageContent::Coord(Some(observed_cell.coord)),
+                    ));
+                }
+            }
             self.knowledge_base.entry(observed_cell.coord).or_insert(observed_cell);
+        }
+        if !self.send_target {
+            if self.target_gold.is_none() {
+                let message = Message::new(
+                    self.id,
+                    MessageType::Simple,
+                    self.id as u32,
+                    MessageContent::Coord(None),
+                );
+                self.send(message, self.receiver_ids.clone());
+            } else {
+                self.send(self.message_to_send.unwrap(), self.receiver_ids.clone());
+            }
+            self.send_target = true;
         }
         if (self.logger_config.robot_kb) {
             match self.team {
@@ -329,6 +366,7 @@ impl Robot {
     pub fn observable_cells(&mut self, width: usize, height: usize) -> LinkedList<Coord> {
         let mut observable_cells: LinkedList::<Coord> = LinkedList::new();
         let mut current_coord = self.current_coord;
+        observable_cells.push_back(current_coord);
         match self.facing {
             Direction::Left => {
                 if (current_coord.x == 0) {
@@ -482,13 +520,14 @@ impl Robot {
 
     fn set_consensus(&mut self, consensus: MessageContent) {
         match consensus {
-            MessageContent::Coord(coord) => {
+            MessageContent::Coord(Some(coord)) => {
                 self.consensus_coord = Some(coord);
                 println!("Robot {} has Consensus coord: {:?}", self.team.style(self.id.to_string()), self.consensus_coord);
             },
             MessageContent::Pair(a, b) => {
-                
-            }
+
+            },
+            _ => {}
         }
     }
 
@@ -620,6 +659,21 @@ impl Robot {
                         );
                         self.message_to_send = Some(new_message_to_send);
                         self.send(new_message_to_send, self.receiver_ids.clone());
+                    },
+                    MessageType::Simple => {
+                        if self.not_received_simple > 0 {
+                            self.not_received_simple -= 1;
+                            if self.target_gold.is_some() {
+                                match message.message_content {
+                                    MessageContent::Coord(Some(coord)) => {
+                                        if coord == self.target_gold.unwrap() {
+                                            self.local_cluster.push(message.sender_id);
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -634,7 +688,9 @@ impl Debug for Robot {
         match self.team {
             Team::Red => {
                 write!(f, "{} is at {:?} facing {:?} - ", self.id.to_string().red(), self.current_coord, self.facing)?;
-                write!(f, "Consensus coord: {:?}", self.consensus_coord)?;
+                // write!(f, "Consensus coord: {:?} - ", self.consensus_coord)?;
+                write!(f, "Target gold: {:?} - ", self.target_gold)?;
+                write!(f, "Local cluster: {:?}", self.local_cluster)?;
                 if self.is_carrying {
                     write!(f, " is {} with {}", "CARRYING GOLD".yellow().bold(), self.pair_id.unwrap().to_string().red().dimmed())
                 } else {
@@ -643,7 +699,9 @@ impl Debug for Robot {
             },
             Team::Blue => {
                 write!(f, "{} is at {:?} facing {:?} - ", self.id.to_string().blue(), self.current_coord, self.facing)?;
-                write!(f, "Consensus coord: {:?}", self.consensus_coord)?;
+                // write!(f, "Consensus coord: {:?} - ", self.consensus_coord)?;
+                write!(f, "Target gold: {:?} - ", self.target_gold)?;
+                write!(f, "Local cluster: {:?}", self.local_cluster)?;
                 if self.is_carrying {
                     write!(f, " is {} with {}", "CARRYING GOLD".yellow().bold(), self.pair_id.unwrap().to_string().blue().dimmed())
                 } else {

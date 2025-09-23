@@ -3,10 +3,10 @@ pub mod logger;
 // General Configurations
 const WIDTH: usize = 3;
 const HEIGHT: usize = 3;
-const P_GOLD: f64 = 0.5;
+const P_GOLD: f64 = 0.8;
 const MAX_GOLD: u8 = 5;
-const N_ROBOTS: u8 = 3;
-const TURNS: u8 = 20;
+const N_ROBOTS: u8 = 5;
+const TURNS: u8 = 10;
 const MANUAL: bool = false;
 pub struct Config {
     pub width: usize,
