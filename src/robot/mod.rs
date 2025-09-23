@@ -1,10 +1,9 @@
 pub mod manager;
 
-use std::collections::{LinkedList, HashMap, HashSet};
+use std::collections::{LinkedList, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex};
 use std::io;
-use std::thread::current;
 use crate::util::Coord;
 use colored::{ColoredString, Colorize};
 use crate::communication::message::{Message, MessageBoard, MessageContent, MessageType};
@@ -12,6 +11,8 @@ use crate::config::logger::LoggerConfig;
 use crate::environment::cell::Cell;
 use crate::environment::grid::Grid;
 use crate::config::Config;
+
+use rand::seq::IndexedRandom;
 
 
 #[derive(Copy, Clone)]
@@ -104,6 +105,8 @@ pub struct Robot {
     accept_count: u8,
     majority: u8,
     increment: u32,
+    send_pair_request: bool,
+    consensus_pair: Option<(char, char)>,
 
     target_gold: Option<Coord>,
     max_gold_seen: u8,
@@ -152,11 +155,13 @@ impl Robot {
             accept_count: 0,
             majority: n_robots / 2,
             increment: id as u32,
+            send_pair_request: false,
+            consensus_pair: None,
             target_gold: None,
             max_gold_seen: 0,
             send_target: false,
             local_cluster: Vec::new(),
-            not_received_simple: n_robots,
+            not_received_simple: n_robots - 1,
             logger_config: LoggerConfig::new(),
         }
     }
@@ -195,9 +200,21 @@ impl Robot {
         if self.is_carrying {
             self.was_carrying = true;
         }
-        // if (self.turn == 0) {
-        //     self.send(self.message_to_send.unwrap(), self.get_receiver_ids());
-        // }
+        if (self.not_received_simple == 0 && !self.send_pair_request) {
+            let mut rng = rand::rng();
+            let pair_id = self.local_cluster.choose(&mut rng);
+            if pair_id.is_some() {
+                self.message_to_send = Some(Message::new(
+                    self.id,
+                    MessageType::PrepareRequest,
+                    self.id as u32,
+                    MessageContent::Pair(self.id, *pair_id.unwrap())),
+                );
+                self.send(self.message_to_send.unwrap(), self.local_cluster.clone());
+                self.majority = (self.local_cluster.len() / 2) as u8;
+                self.send_pair_request = true;
+            }
+        }
         self.paxos_receiver(self.receive());
         if (manual) {
             let mut input_string = String::new();
@@ -211,7 +228,7 @@ impl Robot {
                 _ => Action:: Move,
             }
         } else {
-            match rand::random_range(1..7) {
+            match rand::random_range(1..5) {
                 1 => Action::Turn(Direction::Left),
                 2 => Action::Turn(Direction::Right),
                 3 => Action::Turn(Direction::Up),
@@ -525,7 +542,9 @@ impl Robot {
                 println!("Robot {} has Consensus coord: {:?}", self.team.style(self.id.to_string()), self.consensus_coord);
             },
             MessageContent::Pair(a, b) => {
-
+                self.consensus_pair = Some((a, b));
+                println!("Robot {} has Consensus pair: {:?}", self.team.style(self.id.to_string()), self.consensus_pair);
+                self.set_consensus(MessageContent::Coord(Some(self.target_gold.unwrap())));
             },
             _ => {}
         }
@@ -617,7 +636,7 @@ impl Robot {
                                     message_to_send.id,
                                     message_to_send.message_content,
                                 );
-                                self.send(accept_request_msg, self.receiver_ids.clone());
+                                self.send(accept_request_msg, self.local_cluster.clone());
                             }
                         } else {
                             self.piggybacked = true;
@@ -637,7 +656,7 @@ impl Robot {
                             if (self.promise_count > self.majority && !self.reached_majority) {
                                 self.reached_majority = true;
                                 println!("Robot {} has received majority promises", self.team.style(self.id.to_string()));
-                                self.send(self.message_to_send.unwrap(), self.receiver_ids.clone());
+                                self.send(self.message_to_send.unwrap(), self.local_cluster.clone());
                             }
                         }
                     },
@@ -658,7 +677,7 @@ impl Robot {
                             message_content,
                         );
                         self.message_to_send = Some(new_message_to_send);
-                        self.send(new_message_to_send, self.receiver_ids.clone());
+                        self.send(new_message_to_send, self.local_cluster.clone());
                     },
                     MessageType::Simple => {
                         if self.not_received_simple > 0 {
@@ -688,7 +707,8 @@ impl Debug for Robot {
         match self.team {
             Team::Red => {
                 write!(f, "{} is at {:?} facing {:?} - ", self.id.to_string().red(), self.current_coord, self.facing)?;
-                // write!(f, "Consensus coord: {:?} - ", self.consensus_coord)?;
+                write!(f, "Consensus coord: {:?} - ", self.consensus_coord)?;
+                write!(f, "Consensus pair: {:?} - ", self.consensus_pair)?;
                 write!(f, "Target gold: {:?} - ", self.target_gold)?;
                 write!(f, "Local cluster: {:?}", self.local_cluster)?;
                 if self.is_carrying {
@@ -699,7 +719,8 @@ impl Debug for Robot {
             },
             Team::Blue => {
                 write!(f, "{} is at {:?} facing {:?} - ", self.id.to_string().blue(), self.current_coord, self.facing)?;
-                // write!(f, "Consensus coord: {:?} - ", self.consensus_coord)?;
+                write!(f, "Consensus coord: {:?} - ", self.consensus_coord)?;
+                write!(f, "Consensus pair: {:?} - ", self.consensus_pair)?;
                 write!(f, "Target gold: {:?} - ", self.target_gold)?;
                 write!(f, "Local cluster: {:?}", self.local_cluster)?;
                 if self.is_carrying {
