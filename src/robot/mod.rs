@@ -172,6 +172,16 @@ impl Robot {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.was_carrying = false;
+        self.is_carrying = false;
+        self.piggybacked = false;
+        self.reached_majority = false;
+        self.send_pair_request = false;
+        self.send_target = false;
+        self.accepted = false;
+    }
+
     pub fn get_team(&self) -> Team {
         self.team
     }
