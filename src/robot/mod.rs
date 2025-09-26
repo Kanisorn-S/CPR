@@ -13,7 +13,7 @@ use crate::environment::grid::Grid;
 use crate::config::Config;
 
 use rand::seq::IndexedRandom;
-
+use crate::robot::Action::Turn;
 
 #[derive(Copy, Clone)]
 pub enum Team {
@@ -38,7 +38,7 @@ impl Debug for Team {
         }
     }
 }
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Eq, Hash, Copy, Clone, PartialEq)]
 pub enum Direction {
     Left,
     Right,
@@ -108,13 +108,18 @@ pub struct Robot {
     increment: u32,
     send_pair_request: bool,
     consensus_pair: Option<(char, char)>,
+    pre_pickup_pair_id: Option<char>,
 
     target_gold: Option<Coord>,
+    reached_target_gold: bool,
     max_gold_seen: u8,
     send_target: bool,
     local_cluster: Vec<char>,
     not_received_simple: u8,
     accepted: bool,
+
+    // Direction Consensus
+    sent_direction_request: bool,
 
     // Move Planning
     planned_actions: Vec<Action>,
@@ -164,10 +169,13 @@ impl Robot {
             send_pair_request: false,
             consensus_pair: None,
             target_gold: None,
+            reached_target_gold: false,
+            pre_pickup_pair_id: None,
             max_gold_seen: 0,
             send_target: false,
             local_cluster: Vec::new(),
             not_received_simple: n_robots - 1,
+            sent_direction_request: false,
             accepted: false,
             planned_actions: Vec::new(),
             logger_config: LoggerConfig::new(),
@@ -248,13 +256,20 @@ impl Robot {
         } else if !self.planned_actions.is_empty() {
             self.planned_actions.remove(0)
         } else {
-            match rand::random_range(1..5) {
-                1 => Action::Turn(Direction::Left),
-                2 => Action::Turn(Direction::Right),
-                3 => Action::Turn(Direction::Up),
-                4 => Action::Turn(Direction::Down),
-                5 => Action::Move,
-                _ => Action::PickUp,
+            // match rand::random_range(1..5) {
+            //     1 => Action::Turn(Direction::Left),
+            //     2 => Action::Turn(Direction::Right),
+            //     3 => Action::Turn(Direction::Up),
+            //     4 => Action::Turn(Direction::Down),
+            //     5 => Action::Move,
+            //     _ => Action::PickUp,
+            // }
+            // No Action
+            match self.facing {
+                Direction::Left => Turn(Direction::Left),
+                Direction::Right => Turn(Direction::Right),
+                Direction::Up => Turn(Direction::Up),
+                Direction::Down => Turn(Direction::Down),
             }
         }
     }
@@ -398,6 +413,21 @@ impl Robot {
                 self.send(self.message_to_send.unwrap(), self.receiver_ids.clone());
             }
             self.send_target = true;
+        }
+
+        if self.consensus_coord.is_some() {
+            if self.current_coord == self.target_gold.unwrap() && !self.sent_direction_request {
+                if self.pre_pickup_pair_id.is_some() {
+                    self.send(Message::new(
+                        self.id,
+                        MessageType::Request,
+                        self.id as u32,
+                        MessageContent::Direction(Direction::Right),
+                    ), vec![self.pre_pickup_pair_id.unwrap()]);
+                    self.sent_direction_request = true;
+
+                }
+            }
         }
         if (self.logger_config.robot_kb) {
             match self.team {
@@ -572,6 +602,11 @@ impl Robot {
                 println!("Robot {} has Consensus pair: {:?}", self.team.style(self.id.to_string()), self.consensus_pair);
                 self.set_consensus(MessageContent::Coord(Some(self.target_gold.unwrap())));
                 if (self.id == a || self.id == b) && self.planned_actions.is_empty() {
+                    if self.id == a {
+                        self.pre_pickup_pair_id = Some(b);
+                    } else {
+                        self.pre_pickup_pair_id = Some(a);
+                    }
                     self.plan_actions_to_move_to(self.target_gold.unwrap());
                     println!("Plan to move to {:?}: {:?}", self.target_gold.unwrap(), self.planned_actions);
                 }
@@ -632,7 +667,7 @@ impl Robot {
                                 println!("Received Message: {:?}", message);
                                 if (promised_message.id <= message.id && !self.accepted) {
                                     self.accepted = true;
-                                    self.set_consensus(message.message_content);
+                                    // self.set_consensus(message.message_content);
                                     self.promised_message = Some(message);
                                     let accepted_msg = Message::new(
                                         self.id,
@@ -696,8 +731,17 @@ impl Robot {
                         if (self.accept_count > self.majority) {
                             self.set_consensus(message.message_content);
                             self.promised_message = Some(message);
+                            self.send(Message::new(
+                                self.id,
+                                MessageType::Confirm,
+                                self.id as u32,
+                                message.message_content,
+                            ), self.local_cluster.clone());
                         }
                     },
+                    MessageType::Confirm => {
+                        self.set_consensus(message.message_content);
+                    }
                     MessageType::Nack => {
                         self.max_id_seen = message.id;
                         let Message { message_content, .. } = self.message_to_send.unwrap();
@@ -724,7 +768,31 @@ impl Robot {
                                 }
                             }
                         }
-                    }
+                    },
+                    MessageType::Request => {
+                        if self.id < message.sender_id {
+                            self.send(Message::new(
+                                self.id,
+                                MessageType::Ack,
+                                self.id as u32,
+                                message.message_content,
+                            ), vec![message.sender_id]);
+                            match message.message_content {
+                                MessageContent::Direction(direction) => {
+                                    self.planned_actions.push(Turn(direction));
+                                },
+                                _ => {}
+                            }
+                        }
+                    },
+                    MessageType::Ack => {
+                        match message.message_content {
+                            MessageContent::Direction(direction) => {
+                                self.planned_actions.push(Turn(direction));
+                            },
+                            _ => {}
+                        }
+                    },
                 }
             },
             None => ()

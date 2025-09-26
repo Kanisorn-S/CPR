@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use colored::Colorize;
+use crate::robot::Direction;
 use crate::util::Coord;
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
@@ -9,14 +10,18 @@ pub enum MessageType {
   PrepareResponse,
   AcceptRequest,
   Accepted,
+  Confirm,
   Nack,
   Simple,
+  Request,
+  Ack,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub enum MessageContent {
   Coord(Option<Coord>),
   Pair(char, char),
+  Direction(Direction),
 }
 
 #[derive(PartialEq, Hash, Eq, Clone, Copy)]
@@ -113,6 +118,9 @@ impl Debug for MessageContent {
       },
       MessageContent::Coord(coord) => {
         write!(f, "{:?}", coord)
+      },
+      MessageContent::Direction(direction) => {
+        write!(f, "{:?}", direction)
       }
     }
   }
