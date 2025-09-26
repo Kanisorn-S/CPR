@@ -43,8 +43,8 @@ impl World {
         }
         let mut grid = Grid::new(grid, width, height);
         let (red_deposit_box, blue_deposit_box) = Self::spawn_deposit_box(width, height, &mut grid);
-        let (blue_team, blue_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Blue);
-        let (red_team, red_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Red);
+        let (blue_team, blue_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Blue, blue_deposit_box);
+        let (red_team, red_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Red, red_deposit_box);
         Self {
             manual,
             grid,
@@ -115,7 +115,7 @@ impl World {
         (red_deposit_box, blue_deposit_box)
     }
 
-    fn spawn_robots(width: usize, height: usize, grid: &mut Grid, n_robots: u8, team: Team) -> (HashMap<char, Robot>, Arc<Mutex<MessageBoard>>) {
+    fn spawn_robots(width: usize, height: usize, grid: &mut Grid, n_robots: u8, team: Team, deposit_box: Coord) -> (HashMap<char, Robot>, Arc<Mutex<MessageBoard>>) {
         let mut robots: HashMap<char, Robot> = HashMap::new();
         let message_board: Arc<Mutex<MessageBoard>> = Arc::new(Mutex::new(MessageBoard::new()));
         let first_id = match team {
@@ -132,7 +132,7 @@ impl World {
                 2 => Down,
                 _ => Up,
             };
-            let new_robot = Robot::new(id, team, current_pos, facing, Arc::clone(&message_board));
+            let new_robot = Robot::new(id, team, current_pos, facing, Arc::clone(&message_board), deposit_box);
             grid.get_mut_cell(current_pos).unwrap().add_bot(&new_robot);
             robots.insert(id, new_robot);
         }

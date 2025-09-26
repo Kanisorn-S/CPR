@@ -86,6 +86,7 @@ pub struct Robot {
     coord_history: Vec<Coord>,
     action_history: Vec<Action>,
     turn: usize,
+    deposit_box_coord: Coord,
 
     // Perception
     observable_cells: LinkedList<Coord>,
@@ -124,7 +125,7 @@ pub struct Robot {
 
 // Constructors and getters
 impl Robot {
-    pub fn new(id: char, team: Team, current_coord:Coord, facing: Direction, message_board: Arc<Mutex<MessageBoard>>) -> Self {
+    pub fn new(id: char, team: Team, current_coord:Coord, facing: Direction, message_board: Arc<Mutex<MessageBoard>>, deposit_box_coord: Coord) -> Self {
         let mut coord_history: Vec<Coord> = Vec::new();
         let Config { n_robots, .. } = Config::new();
         coord_history.push(current_coord);
@@ -137,6 +138,7 @@ impl Robot {
             was_carrying: false,
             pair_id: None,
             coord_history,
+            deposit_box_coord,
             action_history: Vec::new(),
             turn: 0,
             observable_cells: LinkedList::new(),
