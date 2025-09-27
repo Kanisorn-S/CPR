@@ -418,11 +418,19 @@ impl Robot {
         if self.consensus_coord.is_some() {
             if self.current_coord == self.target_gold.unwrap() && !self.sent_direction_request {
                 if self.pre_pickup_pair_id.is_some() {
+                    let propose_direction;
+                    match rand::random_range(1..5) {
+                        1 => propose_direction = Direction::Right,
+                        2 => propose_direction = Direction::Left,
+                        3 => propose_direction = Direction::Up,
+                        4 => propose_direction = Direction::Down,
+                        _ => propose_direction = Direction::Right,
+                    }
                     self.send(Message::new(
                         self.id,
                         MessageType::Request,
                         self.id as u32,
-                        MessageContent::Direction(Direction::Right),
+                        MessageContent::Direction(propose_direction),
                     ), vec![self.pre_pickup_pair_id.unwrap()]);
                     self.sent_direction_request = true;
 
