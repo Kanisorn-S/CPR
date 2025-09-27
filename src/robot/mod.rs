@@ -120,6 +120,7 @@ pub struct Robot {
 
     // Direction Consensus
     sent_direction_request: bool,
+    received_direction: bool,
 
     // Move Planning
     planned_actions: Vec<Action>,
@@ -176,6 +177,7 @@ impl Robot {
             local_cluster: Vec::new(),
             not_received_simple: n_robots - 1,
             sent_direction_request: false,
+            received_direction: false,
             accepted: false,
             planned_actions: Vec::new(),
             logger_config: LoggerConfig::new(),
@@ -416,7 +418,7 @@ impl Robot {
         }
 
         if self.consensus_coord.is_some() {
-            if self.current_coord == self.target_gold.unwrap() && !self.sent_direction_request {
+            if self.current_coord == self.target_gold.unwrap() && !self.sent_direction_request && !self.received_direction {
                 if self.pre_pickup_pair_id.is_some() {
                     let propose_direction;
                     match rand::random_range(1..5) {
@@ -778,7 +780,7 @@ impl Robot {
                         }
                     },
                     MessageType::Request => {
-                        if self.id < message.sender_id {
+                        if self.id < message.sender_id || self.current_coord != self.target_gold.unwrap() {
                             self.send(Message::new(
                                 self.id,
                                 MessageType::Ack,
@@ -788,6 +790,7 @@ impl Robot {
                             match message.message_content {
                                 MessageContent::Direction(direction) => {
                                     self.planned_actions.push(Turn(direction));
+                                    self.received_direction = true;
                                 },
                                 _ => {}
                             }
