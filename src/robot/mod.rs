@@ -76,6 +76,7 @@ impl Debug for Action {
 }
 
 pub struct Robot {
+    // General
     id: char,
     team: Team,
     current_coord: Coord,
@@ -94,12 +95,21 @@ pub struct Robot {
 
     // Communication
     message_board: Arc<Mutex<MessageBoard>>,
+    message_to_send: Option<Message>,
+
+    // Local Cluster Identification
+    receiver_ids: Vec<char>,
+    target_gold: Option<Coord>,
+    max_gold_seen: u8,
+    send_target: bool,
+    local_cluster: Vec<char>,
+    not_received_simple: u8,
+
+    // PAXOS
     consensus_coord: Option<Coord>,
     promised_message: Option<Message>,
     max_id_seen: u32,
     max_piggyback_id_seen: u32,
-    message_to_send: Option<Message>,
-    receiver_ids: Vec<char>,
     promise_count: u8,
     piggybacked: bool,
     reached_majority: bool,
@@ -109,13 +119,6 @@ pub struct Robot {
     send_pair_request: bool,
     consensus_pair: Option<(char, char)>,
     pre_pickup_pair_id: Option<char>,
-
-    target_gold: Option<Coord>,
-    reached_target_gold: bool,
-    max_gold_seen: u8,
-    send_target: bool,
-    local_cluster: Vec<char>,
-    not_received_simple: u8,
     accepted: bool,
 
     // Direction Consensus
@@ -137,6 +140,7 @@ impl Robot {
         let Config { n_robots, .. } = Config::new();
         coord_history.push(current_coord);
         Robot {
+            // General
             id,
             team,
             current_coord,
@@ -145,43 +149,56 @@ impl Robot {
             was_carrying: false,
             pair_id: None,
             coord_history,
-            deposit_box_coord,
             action_history: Vec::new(),
             turn: 0,
+            deposit_box_coord,
+
+            // Perception
             observable_cells: LinkedList::new(),
             knowledge_base: HashMap::new(),
+
+            // Communication
             message_board,
-            consensus_coord: None,
-            promised_message: None,
-            max_id_seen: 0,
-            max_piggyback_id_seen: 0,
-            piggybacked: false,
             message_to_send: Some(Message::new(
                 id,
                 MessageType::PrepareRequest,
                 id as u32,
                 MessageContent::Coord(Some(current_coord)),
             )),
+
+            // Local Cluster Identification
             receiver_ids: make_vec(n_robots, id, team),
+            target_gold: None,
+            max_gold_seen: 0,
+            send_target: false,
+            local_cluster: Vec::new(),
+            not_received_simple: n_robots - 1,
+
+            // PAXOS
+            consensus_coord: None,
+            promised_message: None,
+            max_id_seen: 0,
+            max_piggyback_id_seen: 0,
             promise_count: 0,
+            piggybacked: false,
             reached_majority: false,
             accept_count: 0,
             majority: n_robots / 2,
             increment: id as u32,
             send_pair_request: false,
             consensus_pair: None,
-            target_gold: None,
-            reached_target_gold: false,
             pre_pickup_pair_id: None,
-            max_gold_seen: 0,
-            send_target: false,
-            local_cluster: Vec::new(),
-            turned: false,
-            not_received_simple: n_robots - 1,
+            accepted: false,
+
+            // Direction Consensus
             sent_direction_request: false,
             received_direction: false,
-            accepted: false,
+            turned: false,
+
+            // Move Planning
             planned_actions: Vec::new(),
+
+            // Configuration
             logger_config: LoggerConfig::new(),
         }
     }
