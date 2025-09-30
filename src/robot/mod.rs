@@ -121,6 +121,7 @@ pub struct Robot {
     // Direction Consensus
     sent_direction_request: bool,
     received_direction: bool,
+    turned: bool,
 
     // Move Planning
     planned_actions: Vec<Action>,
@@ -175,6 +176,7 @@ impl Robot {
             max_gold_seen: 0,
             send_target: false,
             local_cluster: Vec::new(),
+            turned: false,
             not_received_simple: n_robots - 1,
             sent_direction_request: false,
             received_direction: false,
@@ -256,6 +258,7 @@ impl Robot {
                 _ => Action:: Move,
             }
         } else if !self.planned_actions.is_empty() {
+            println!("{:?}", self.planned_actions);
             self.planned_actions.remove(0)
         } else {
             // match rand::random_range(1..5) {
@@ -266,12 +269,20 @@ impl Robot {
             //     5 => Action::Move,
             //     _ => Action::PickUp,
             // }
-            // No Action
-            match self.facing {
-                Direction::Left => Turn(Direction::Left),
-                Direction::Right => Turn(Direction::Right),
-                Direction::Up => Turn(Direction::Up),
-                Direction::Down => Turn(Direction::Down),
+            // Spam PICKUP
+            if !self.is_carrying() && self.pre_pickup_pair_id.is_some() && self.turned {
+                Action::PickUp
+            } else if self.is_carrying() {
+                self.plan_actions_to_move_to(self.deposit_box_coord);
+                Action::Turn(Direction::Up)
+            } else {
+                // No Action
+                match self.facing {
+                    Direction::Left => Turn(Direction::Left),
+                    Direction::Right => Turn(Direction::Right),
+                    Direction::Up => Turn(Direction::Up),
+                    Direction::Down => Turn(Direction::Down),
+                }
             }
         }
     }
@@ -791,6 +802,7 @@ impl Robot {
                                 MessageContent::Direction(direction) => {
                                     self.planned_actions.push(Turn(direction));
                                     self.received_direction = true;
+                                    self.turned = true;
                                 },
                                 _ => {}
                             }
@@ -800,6 +812,7 @@ impl Robot {
                         match message.message_content {
                             MessageContent::Direction(direction) => {
                                 self.planned_actions.push(Turn(direction));
+                                self.turned = true;
                             },
                             _ => {}
                         }
