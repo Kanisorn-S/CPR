@@ -1,28 +1,44 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use colored::Colorize;
+use crate::robot::Direction;
 use crate::util::Coord;
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 pub enum MessageType {
   PrepareRequest,
   PrepareResponse,
-  AcceptRequest
+  AcceptRequest,
+  Accepted,
+  Confirm,
+  Nack,
+  Simple,
+  Request,
+  Ack,
+}
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+pub enum MessageContent {
+  Coord(Option<Coord>),
+  Pair(char, char),
+  Direction(Direction),
 }
 
 #[derive(PartialEq, Hash, Eq, Clone, Copy)]
 pub struct Message {
-  msg_type: MessageType,
-  id: u32,
-  coord: Coord,
+  pub sender_id: char,
+  pub msg_type: MessageType,
+  pub id: u32,
+  pub message_content: MessageContent,
 }
 
 impl Message {
-  pub fn new(msg_type: MessageType, id: u32, coord: Coord) -> Message {
+  pub fn new(sender_id: char, msg_type: MessageType, id: u32, message_content: MessageContent) -> Message {
     Self {
+      sender_id,
       msg_type,
       id,
-      coord,
+      message_content,
     }
   }
 }
@@ -94,9 +110,26 @@ impl MessageBoard {
 }
 
 // Print Functions
+impl Debug for MessageContent {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    match self {
+      MessageContent::Pair(a, b) => {
+        write!(f, "Pair {} {}", a, b)
+      },
+      MessageContent::Coord(coord) => {
+        write!(f, "{:?}", coord)
+      },
+      MessageContent::Direction(direction) => {
+        write!(f, "{:?}", direction)
+      }
+    }
+  }
+}
+
+
 impl Debug for Message {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}: {:?} - {:?}", self.id, self.msg_type, self.coord)
+    write!(f, "{}: {:?} - {:?} from {}", self.id, self.msg_type, self.message_content, self.sender_id)
   }
 }
 

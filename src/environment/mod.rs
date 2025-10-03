@@ -43,8 +43,8 @@ impl World {
         }
         let mut grid = Grid::new(grid, width, height);
         let (red_deposit_box, blue_deposit_box) = Self::spawn_deposit_box(width, height, &mut grid);
-        let (blue_team, blue_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Blue);
-        let (red_team, red_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Red);
+        let (blue_team, blue_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Blue, blue_deposit_box);
+        let (red_team, red_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Red, red_deposit_box);
         Self {
             manual,
             grid,
@@ -115,7 +115,7 @@ impl World {
         (red_deposit_box, blue_deposit_box)
     }
 
-    fn spawn_robots(width: usize, height: usize, grid: &mut Grid, n_robots: u8, team: Team) -> (HashMap<char, Robot>, Arc<Mutex<MessageBoard>>) {
+    fn spawn_robots(width: usize, height: usize, grid: &mut Grid, n_robots: u8, team: Team, deposit_box: Coord) -> (HashMap<char, Robot>, Arc<Mutex<MessageBoard>>) {
         let mut robots: HashMap<char, Robot> = HashMap::new();
         let message_board: Arc<Mutex<MessageBoard>> = Arc::new(Mutex::new(MessageBoard::new()));
         let first_id = match team {
@@ -132,7 +132,7 @@ impl World {
                 2 => Down,
                 _ => Up,
             };
-            let new_robot = Robot::new(id, team, current_pos, facing, Arc::clone(&message_board));
+            let new_robot = Robot::new(id, team, current_pos, facing, Arc::clone(&message_board), deposit_box);
             grid.get_mut_cell(current_pos).unwrap().add_bot(&new_robot);
             robots.insert(id, new_robot);
         }
@@ -159,6 +159,8 @@ impl World {
         self.check_fumble();
         self.check_drop_deposit();
 
+        // println!();
+        // self.blue_team.print_message_board_debug();
 
         self.blue_team.update_message_board();
         self.red_team.update_message_board();
@@ -244,14 +246,14 @@ impl World {
                             let picked = self.red_team.pickup_gold(reds[0], reds[1]);
                             if picked {
                                 self.grid.get_mut_cell(*coord).unwrap().remove_gold();
-                                println!("{}{} and {} has {} picked up a {}", "|".red(), reds[0].to_string().red().bold(), reds[1].to_string().red().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
+                                // println!("{}{} and {} has {} picked up a {}", "|".red(), reds[0].to_string().red().bold(), reds[1].to_string().red().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
                             }
                         }
                         if blue_is_able_to_pick {
                             let picked = self.blue_team.pickup_gold(blues[0], blues[1]);
                             if picked {
                                 self.grid.get_mut_cell(*coord).unwrap().remove_gold();
-                                println!("{}{} and {} has {} picked up a {}", "|".blue(), blues[0].to_string().blue().bold(), blues[1].to_string().blue().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
+                                // println!("{}{} and {} has {} picked up a {}", "|".blue(), blues[0].to_string().blue().bold(), blues[1].to_string().blue().bold(), "SUCCESSFULLY".green().bold(), "GOLD BAR".yellow().bold())
                             }
                         }
                     }
@@ -342,8 +344,8 @@ impl World {
                                 carrier.score_gold();
                                 pair_robot.score_gold();
                                 self.red_score += 1;
-                                println!("{}{}: {}", "|".red(), "RED".red().bold(), self.red_score.to_string().red());
-                                println!("{}{}: {}", "|".blue(), "BLU".blue().bold(), self.blue_score.to_string().blue());
+                                // println!("{}{}: {}", "|".red(), "RED".red().bold(), self.red_score.to_string().red());
+                                // println!("{}{}: {}", "|".blue(), "BLU".blue().bold(), self.blue_score.to_string().blue());
                                 self.grid.get_mut_cell(self.red_deposit_box).unwrap().increment_score();
                             }
                         },
@@ -367,8 +369,8 @@ impl World {
                                 carrier.score_gold();
                                 pair_robot.score_gold();
                                 self.blue_score += 1;
-                                println!("{}{}: {}", "|".red(), "RED".red().bold(), self.red_score.to_string().red());
-                                println!("{}{}: {}", "|".blue(), "BLU".blue().bold(), self.blue_score.to_string().blue());
+                                // println!("{}{}: {}", "|".red(), "RED".red().bold(), self.red_score.to_string().red());
+                                // println!("{}{}: {}", "|".blue(), "BLU".blue().bold(), self.blue_score.to_string().blue());
                                 self.grid.get_mut_cell(self.blue_deposit_box).unwrap().increment_score();
                             }
                         },

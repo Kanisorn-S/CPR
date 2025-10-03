@@ -1,15 +1,19 @@
 pub mod manager;
 
-use std::collections::{LinkedList, HashMap, HashSet};
+use std::collections::{LinkedList, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex};
 use std::io;
 use crate::util::Coord;
 use colored::{ColoredString, Colorize};
-use crate::communication::message::{Message, MessageBoard, MessageType};
+use crate::communication::message::{Message, MessageBoard, MessageContent, MessageType};
 use crate::config::logger::LoggerConfig;
 use crate::environment::cell::Cell;
 use crate::environment::grid::Grid;
+use crate::config::Config;
+
+use rand::seq::IndexedRandom;
+use crate::robot::Action::Turn;
 
 #[derive(Copy, Clone)]
 pub enum Team {
@@ -34,7 +38,7 @@ impl Debug for Team {
         }
     }
 }
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Eq, Hash, Copy, Clone, PartialEq)]
 pub enum Direction {
     Left,
     Right,
@@ -72,6 +76,7 @@ impl Debug for Action {
 }
 
 pub struct Robot {
+    // General
     id: char,
     team: Team,
     current_coord: Coord,
@@ -82,6 +87,7 @@ pub struct Robot {
     coord_history: Vec<Coord>,
     action_history: Vec<Action>,
     turn: usize,
+    deposit_box_coord: Coord,
 
     // Perception
     observable_cells: LinkedList<Coord>,
@@ -89,23 +95,52 @@ pub struct Robot {
 
     // Communication
     message_board: Arc<Mutex<MessageBoard>>,
-    max_id: u32,
-    coord_to_send: Option<Coord>,
+    message_to_send: Option<Message>,
+
+    // Local Cluster Identification
+    receiver_ids: Vec<char>,
+    target_gold: Option<Coord>,
+    max_gold_seen: u8,
+    send_target: bool,
+    local_cluster: Vec<char>,
+    not_received_simple: u8,
+
+    // PAXOS
+    consensus_coord: Option<Coord>,
+    promised_message: Option<Message>,
+    max_id_seen: u32,
+    max_piggyback_id_seen: u32,
+    promise_count: u8,
+    piggybacked: bool,
+    reached_majority: bool,
+    accept_count: u8,
+    majority: u8,
     increment: u32,
+    send_pair_request: bool,
+    consensus_pair: Option<(char, char)>,
+    pre_pickup_pair_id: Option<char>,
+    accepted: bool,
+
+    // Direction Consensus
+    sent_direction_request: bool,
+    received_direction: bool,
+    turned: bool,
 
     // Move Planning
     planned_actions: Vec<Action>,
-    
+
     // Configurations
     logger_config: LoggerConfig,
 }
 
 // Constructors and getters
 impl Robot {
-    pub fn new(id: char, team: Team, current_coord: Coord, facing: Direction, message_board: Arc<Mutex<MessageBoard>>) -> Self {
+    pub fn new(id: char, team: Team, current_coord:Coord, facing: Direction, message_board: Arc<Mutex<MessageBoard>>, deposit_box_coord: Coord) -> Self {
         let mut coord_history: Vec<Coord> = Vec::new();
+        let Config { n_robots, .. } = Config::new();
         coord_history.push(current_coord);
         Robot {
+            // General
             id,
             team,
             current_coord,
@@ -116,15 +151,66 @@ impl Robot {
             coord_history,
             action_history: Vec::new(),
             turn: 0,
+            deposit_box_coord,
+
+            // Perception
             observable_cells: LinkedList::new(),
             knowledge_base: HashMap::new(),
+
+            // Communication
             message_board,
-            max_id: 0,
-            coord_to_send: None,
+            message_to_send: Some(Message::new(
+                id,
+                MessageType::PrepareRequest,
+                id as u32,
+                MessageContent::Coord(Some(current_coord)),
+            )),
+
+            // Local Cluster Identification
+            receiver_ids: make_vec(n_robots, id, team),
+            target_gold: None,
+            max_gold_seen: 0,
+            send_target: false,
+            local_cluster: Vec::new(),
+            not_received_simple: n_robots - 1,
+
+            // PAXOS
+            consensus_coord: None,
+            promised_message: None,
+            max_id_seen: 0,
+            max_piggyback_id_seen: 0,
+            promise_count: 0,
+            piggybacked: false,
+            reached_majority: false,
+            accept_count: 0,
+            majority: n_robots / 2,
             increment: id as u32,
+            send_pair_request: false,
+            consensus_pair: None,
+            pre_pickup_pair_id: None,
+            accepted: false,
+
+            // Direction Consensus
+            sent_direction_request: false,
+            received_direction: false,
+            turned: false,
+
+            // Move Planning
             planned_actions: Vec::new(),
+
+            // Configuration
             logger_config: LoggerConfig::new(),
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.was_carrying = false;
+        self.is_carrying = false;
+        self.piggybacked = false;
+        self.reached_majority = false;
+        self.send_pair_request = false;
+        self.send_target = false;
+        self.accepted = false;
     }
 
     pub fn get_team(&self) -> Team {
@@ -137,6 +223,10 @@ impl Robot {
 
     pub fn get_coord(&self) -> Coord {
         self.current_coord
+    }
+
+    fn get_receiver_ids(&self) -> Vec<char> {
+        self.receiver_ids.clone()
     }
 
 
@@ -157,6 +247,22 @@ impl Robot {
         if self.is_carrying {
             self.was_carrying = true;
         }
+        if (self.not_received_simple == 0 && !self.send_pair_request) {
+            let mut rng = rand::rng();
+            let pair_id = self.local_cluster.choose(&mut rng);
+            if pair_id.is_some() {
+                self.message_to_send = Some(Message::new(
+                    self.id,
+                    MessageType::PrepareRequest,
+                    self.id as u32,
+                    MessageContent::Pair(self.id, *pair_id.unwrap())),
+                );
+                self.send(self.message_to_send.unwrap(), self.local_cluster.clone());
+                self.majority = (self.local_cluster.len() / 2) as u8;
+                self.send_pair_request = true;
+            }
+        }
+        self.paxos_receiver(self.receive());
         if (manual) {
             let mut input_string = String::new();
             io::stdin().read_line(&mut input_string).expect("Failed to read line");
@@ -169,15 +275,31 @@ impl Robot {
                 _ => Action:: Move,
             }
         } else if !self.planned_actions.is_empty() {
+            println!("{:?}", self.planned_actions);
             self.planned_actions.remove(0)
         } else {
-            match rand::random_range(1..7) {
-                1 => Action::Turn(Direction::Left),
-                2 => Action::Turn(Direction::Right),
-                3 => Action::Turn(Direction::Up),
-                4 => Action::Turn(Direction::Down),
-                5 => Action::Move,
-                _ => Action::PickUp,
+            // match rand::random_range(1..5) {
+            //     1 => Action::Turn(Direction::Left),
+            //     2 => Action::Turn(Direction::Right),
+            //     3 => Action::Turn(Direction::Up),
+            //     4 => Action::Turn(Direction::Down),
+            //     5 => Action::Move,
+            //     _ => Action::PickUp,
+            // }
+            // Spam PICKUP
+            if !self.is_carrying() && self.pre_pickup_pair_id.is_some() && self.turned {
+                Action::PickUp
+            } else if self.is_carrying() {
+                self.plan_actions_to_move_to(self.deposit_box_coord);
+                Action::Turn(Direction::Up)
+            } else {
+                // No Action
+                match self.facing {
+                    Direction::Left => Turn(Direction::Left),
+                    Direction::Right => Turn(Direction::Right),
+                    Direction::Up => Turn(Direction::Up),
+                    Direction::Down => Turn(Direction::Down),
+                }
             }
         }
     }
@@ -286,15 +408,64 @@ impl Robot {
 impl Robot {
 
     pub fn observe(&mut self, grid: &mut Grid) {
-        let mut target = self.current_coord;
+        // let mut target = self.current_coord;
         for observable_cell in self.observable_cells.iter() {
             let observed_cell = grid.get_cell(*observable_cell).unwrap();
+            if observed_cell.get_gold_amount().is_some() && !self.send_target {
+                if observed_cell.get_gold_amount().unwrap() > self.max_gold_seen {
+                    self.max_gold_seen = observed_cell.get_gold_amount().unwrap();
+                    self.target_gold = Some(observed_cell.coord);
+                    self.message_to_send = Some(Message::new(
+                        self.id,
+                        MessageType::Simple,
+                        self.id as u32,
+                        MessageContent::Coord(Some(observed_cell.coord)),
+                    ));
+                }
+            }
             self.knowledge_base.entry(observed_cell.coord).or_insert(observed_cell);
-            target = observed_cell.coord;
+            // target = observed_cell.coord;
         }
-        if (self.turn == 0) {
-            self.plan_actions_to_move_to(target);
-            println!("Plan to move to {:?}: {:?}", target, self.planned_actions);
+        // if (self.turn == 0) {
+        //     self.plan_actions_to_move_to(target);
+        //     println!("Plan to move to {:?}: {:?}", target, self.planned_actions);
+        // }
+        if !self.send_target {
+            if self.target_gold.is_none() {
+                let message = Message::new(
+                    self.id,
+                    MessageType::Simple,
+                    self.id as u32,
+                    MessageContent::Coord(None),
+                );
+                self.send(message, self.receiver_ids.clone());
+            } else {
+                self.send(self.message_to_send.unwrap(), self.receiver_ids.clone());
+            }
+            self.send_target = true;
+        }
+
+        if self.consensus_coord.is_some() {
+            if self.current_coord == self.target_gold.unwrap() && !self.sent_direction_request && !self.received_direction {
+                if self.pre_pickup_pair_id.is_some() {
+                    let propose_direction;
+                    match rand::random_range(1..5) {
+                        1 => propose_direction = Direction::Right,
+                        2 => propose_direction = Direction::Left,
+                        3 => propose_direction = Direction::Up,
+                        4 => propose_direction = Direction::Down,
+                        _ => propose_direction = Direction::Right,
+                    }
+                    self.send(Message::new(
+                        self.id,
+                        MessageType::Request,
+                        self.id as u32,
+                        MessageContent::Direction(propose_direction),
+                    ), vec![self.pre_pickup_pair_id.unwrap()]);
+                    self.sent_direction_request = true;
+
+                }
+            }
         }
         if (self.logger_config.robot_kb) {
             match self.team {
@@ -306,6 +477,7 @@ impl Robot {
     pub fn observable_cells(&mut self, width: usize, height: usize) -> LinkedList<Coord> {
         let mut observable_cells: LinkedList::<Coord> = LinkedList::new();
         let mut current_coord = self.current_coord;
+        observable_cells.push_back(current_coord);
         match self.facing {
             Direction::Left => {
                 if (current_coord.x == 0) {
@@ -442,14 +614,233 @@ impl Robot {
         let mut message_board_guard = self.message_board.lock().unwrap();
         let mut message_to_return = None;
         if let Some(message_box) = message_board_guard.get_message_board().get_mut(&self.id) {
-            // let random_message = messages.iter().next().unwrap().clone();
-            // messages.remove(&random_message);
-            // message_to_return = Some(random_message);
             message_to_return = message_box.retrieve_messages()
+        }
+        if (self.logger_config.robot_message) {
+            match message_to_return {
+                Some(message) => {
+                    println!("Robot {} received {:?}", self.team.style(self.id.to_string()), message);
+                },
+                None => {
+                    println!("Robot {} received None", self.team.style(self.id.to_string()));
+                }
+            }
         }
         message_to_return
     }
+
+    fn set_consensus(&mut self, consensus: MessageContent) {
+        match consensus {
+            MessageContent::Coord(Some(coord)) => {
+                self.consensus_coord = Some(coord);
+                println!("Robot {} has Consensus coord: {:?}", self.team.style(self.id.to_string()), self.consensus_coord);
+            },
+            MessageContent::Pair(a, b) => {
+                self.consensus_pair = Some((a, b));
+                println!("Robot {} has Consensus pair: {:?}", self.team.style(self.id.to_string()), self.consensus_pair);
+                self.set_consensus(MessageContent::Coord(Some(self.target_gold.unwrap())));
+                if (self.id == a || self.id == b) && self.planned_actions.is_empty() {
+                    if self.id == a {
+                        self.pre_pickup_pair_id = Some(b);
+                    } else {
+                        self.pre_pickup_pair_id = Some(a);
+                    }
+                    self.plan_actions_to_move_to(self.target_gold.unwrap());
+                    println!("Plan to move to {:?}: {:?}", self.target_gold.unwrap(), self.planned_actions);
+                }
+            },
+            _ => {}
+        }
+    }
+
+    fn paxos_receiver(&mut self, received_message: Option<Message>) {
+        match received_message {
+            Some(message) => {
+                match message.msg_type {
+                    MessageType::PrepareRequest => {
+                        match self.promised_message {
+                            Some(promised_message) => {
+                                if (promised_message.id < message.id) {
+                                    println!("Robot {} Piggybacked", self.team.style(self.id.to_string()));
+                                    self.promised_message = Some(Message::new(
+                                        promised_message.sender_id,
+                                        promised_message.msg_type,
+                                        message.id,
+                                        promised_message.message_content,
+                                    ));
+                                    println!("{:?}", self.promised_message);
+                                    let piggyback_msg = Message::new(
+                                        self.id,
+                                        MessageType::PrepareResponse,
+                                        promised_message.id,
+                                        promised_message.message_content,
+                                    );
+                                    self.send(piggyback_msg, vec![message.sender_id]);
+                                } else {
+                                    // let nack_msg = Message::new(
+                                    //     self.id,
+                                    //     MessageType::Nack,
+                                    //     promised_message.id,
+                                    //     promised_message.coord,
+                                    // );
+                                    // self.send(nack_msg, vec![message.sender_id]);
+                                }
+                            },
+                            None => {
+                                self.promised_message = Some(message);
+                                let promised = Message::new(
+                                    self.id,
+                                    MessageType::PrepareResponse,
+                                    message.id,
+                                    message.message_content,
+                                );
+                                self.send(promised, vec![message.sender_id]);
+                            }
+                        }
+                    },
+                    MessageType::AcceptRequest => {
+                        match self.promised_message {
+                            Some(promised_message) => {
+                                println!("Promised Message: {:?}", promised_message);
+                                println!("Received Message: {:?}", message);
+                                if (promised_message.id <= message.id && !self.accepted) {
+                                    self.accepted = true;
+                                    // self.set_consensus(message.message_content);
+                                    self.promised_message = Some(message);
+                                    let accepted_msg = Message::new(
+                                        self.id,
+                                        MessageType::Accepted,
+                                        message.id,
+                                        message.message_content,
+                                    );
+                                    self.send(accepted_msg, vec![message.sender_id]);
+                                } else {
+                                    // let nack_msg = Message::new(
+                                    //     self.id,
+                                    //     MessageType::Nack,
+                                    //     promised_message.id,
+                                    //     promised_message.coord,
+                                    // );
+                                    // self.send(nack_msg, vec![message.sender_id]);
+                                }
+                            },
+                            None => {}
+                        }
+                    },
+                    MessageType::PrepareResponse => {
+                        self.promise_count += 1;
+                        if (message.id == self.message_to_send.unwrap().id && !self.piggybacked) {
+                            if (self.promise_count > self.majority && !self.reached_majority) {
+                                self.reached_majority = true;
+                                println!("Robot {} has received majority promises", self.team.style(self.id.to_string()));
+                                let message_to_send = self.message_to_send.unwrap();
+                                let accept_request_msg = Message::new(
+                                    self.id,
+                                    MessageType::AcceptRequest,
+                                    message_to_send.id,
+                                    message_to_send.message_content,
+                                );
+                                self.send(accept_request_msg, self.local_cluster.clone());
+                            }
+                        } else {
+                            self.piggybacked = true;
+                            // Update highset piggyback ID
+                            if (message.id > self.max_piggyback_id_seen) {
+                                self.max_piggyback_id_seen = message.id;
+                                let message_to_send = self.message_to_send.unwrap();
+                                let new_message_to_send = Message::new(
+                                    self.id,
+                                    MessageType::AcceptRequest,
+                                    message_to_send.id,
+                                    message.message_content,
+                                );
+                                self.message_to_send = Some(new_message_to_send);
+                            }
+                            // Check majority
+                            if (self.promise_count > self.majority && !self.reached_majority) {
+                                self.reached_majority = true;
+                                println!("Robot {} has received majority promises", self.team.style(self.id.to_string()));
+                                self.send(self.message_to_send.unwrap(), self.local_cluster.clone());
+                            }
+                        }
+                    },
+                    MessageType::Accepted => {
+                        self.accept_count += 1;
+                        if (self.accept_count > self.majority) {
+                            self.set_consensus(message.message_content);
+                            self.promised_message = Some(message);
+                            self.send(Message::new(
+                                self.id,
+                                MessageType::Confirm,
+                                self.id as u32,
+                                message.message_content,
+                            ), self.local_cluster.clone());
+                        }
+                    },
+                    MessageType::Confirm => {
+                        self.set_consensus(message.message_content);
+                    }
+                    MessageType::Nack => {
+                        self.max_id_seen = message.id;
+                        let Message { message_content, .. } = self.message_to_send.unwrap();
+                        let new_message_to_send = Message::new(
+                            self.id,
+                            MessageType::PrepareRequest,
+                            self.max_id_seen + self.increment,
+                            message_content,
+                        );
+                        self.message_to_send = Some(new_message_to_send);
+                        self.send(new_message_to_send, self.local_cluster.clone());
+                    },
+                    MessageType::Simple => {
+                        if self.not_received_simple > 0 {
+                            self.not_received_simple -= 1;
+                            if self.target_gold.is_some() {
+                                match message.message_content {
+                                    MessageContent::Coord(Some(coord)) => {
+                                        if coord == self.target_gold.unwrap() {
+                                            self.local_cluster.push(message.sender_id);
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                            }
+                        }
+                    },
+                    MessageType::Request => {
+                        if self.id < message.sender_id || self.current_coord != self.target_gold.unwrap() {
+                            self.send(Message::new(
+                                self.id,
+                                MessageType::Ack,
+                                self.id as u32,
+                                message.message_content,
+                            ), vec![message.sender_id]);
+                            match message.message_content {
+                                MessageContent::Direction(direction) => {
+                                    self.planned_actions.push(Turn(direction));
+                                    self.received_direction = true;
+                                    self.turned = true;
+                                },
+                                _ => {}
+                            }
+                        }
+                    },
+                    MessageType::Ack => {
+                        match message.message_content {
+                            MessageContent::Direction(direction) => {
+                                self.planned_actions.push(Turn(direction));
+                                self.turned = true;
+                            },
+                            _ => {}
+                        }
+                    },
+                }
+            },
+            None => ()
+        }
+    }
 }
+
 
 // Move Planning
 impl Robot {
@@ -515,7 +906,11 @@ impl Debug for Robot {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.team {
             Team::Red => {
-                write!(f, "{} is at {:?} facing {:?}", self.id.to_string().red(), self.current_coord, self.facing)?;
+                write!(f, "{} is at {:?} facing {:?} - ", self.id.to_string().red(), self.current_coord, self.facing)?;
+                write!(f, "Consensus coord: {:?} - ", self.consensus_coord)?;
+                write!(f, "Consensus pair: {:?} - ", self.consensus_pair)?;
+                write!(f, "Target gold: {:?} - ", self.target_gold)?;
+                write!(f, "Local cluster: {:?}", self.local_cluster)?;
                 if self.is_carrying {
                     write!(f, " is {} with {}", "CARRYING GOLD".yellow().bold(), self.pair_id.unwrap().to_string().red().dimmed())
                 } else {
@@ -523,7 +918,11 @@ impl Debug for Robot {
                 }
             },
             Team::Blue => {
-                write!(f, "{} is at {:?} facing {:?}", self.id.to_string().blue(), self.current_coord, self.facing)?;
+                write!(f, "{} is at {:?} facing {:?} - ", self.id.to_string().blue(), self.current_coord, self.facing)?;
+                write!(f, "Consensus coord: {:?} - ", self.consensus_coord)?;
+                write!(f, "Consensus pair: {:?} - ", self.consensus_pair)?;
+                write!(f, "Target gold: {:?} - ", self.target_gold)?;
+                write!(f, "Local cluster: {:?}", self.local_cluster)?;
                 if self.is_carrying {
                     write!(f, " is {} with {}", "CARRYING GOLD".yellow().bold(), self.pair_id.unwrap().to_string().blue().dimmed())
                 } else {
@@ -534,3 +933,24 @@ impl Debug for Robot {
     }
 }
 
+// Utility Functions
+fn make_vec(n: u8, x: char, team: Team) -> Vec<char> {
+    match team {
+        Team::Blue => {
+            let mut chars: Vec<char> = (0..n)
+                .map(|i| (b'a' + i) as char) // convert u8 -> char
+                .collect();
+
+            chars.retain(|&c| c != x); // remove the special char
+            chars
+        },
+        Team::Red => {
+            let mut chars: Vec<char> = (0..n)
+                .map(|i| (b'A' + i) as char) // convert u8 -> char
+                .collect();
+
+            chars.retain(|&c| c != x); // remove the special char
+            chars
+        }
+    }
+}

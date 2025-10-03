@@ -1,9 +1,9 @@
 extern crate CPR;
 
 use CPR::environment::{World};
+use CPR::config::Config;
 use colored::Colorize;
 use CPR::config::logger::LoggerConfig;
-use CPR::config::Config;
 
 
 fn main() {
@@ -41,4 +41,5 @@ fn main() {
     }
     println!("{}", "Final Grid".bold());
     world.print_grid();
+    world.print_robots();
 }

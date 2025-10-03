@@ -9,11 +9,13 @@ enum CellContent {
     DepositBox(Team, u8),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Cell {
     pub coord: Coord,
     red_robots: u8,
+    red_robots_ids: Vec<char>,
     blue_robots: u8,
+    blue_robots_ids: Vec<char>,
     content: Option<CellContent>,
 }
 
@@ -29,7 +31,9 @@ impl Cell {
         Cell {
             coord: Coord::new(coord.0, coord.1),
             red_robots: 0,
+            red_robots_ids: Vec::new(),
             blue_robots: 0,
+            blue_robots_ids: Vec::new(),
             content,
         }
     }
@@ -40,16 +44,32 @@ impl Cell {
     pub fn add_bot(&mut self, robot: &Robot) {
         let team = robot.get_team();
         match team {
-            Team::Red => self.red_robots += 1,
-            Team::Blue => self.blue_robots += 1,
+            Team::Red => {
+                self.red_robots += 1;
+                self.red_robots_ids.push(robot.get_id());
+            },
+            Team::Blue => {
+                self.blue_robots += 1;
+                self.blue_robots_ids.push(robot.get_id());
+            },
         }
     }
 
     pub fn remove_bot(&mut self, robot: &Robot) {
         let team = robot.get_team();
         match team {
-            Team::Red => self.red_robots -= 1,
-            Team::Blue => self.blue_robots -= 1,
+            Team::Red => {
+                self.red_robots -= 1;
+                if let Some(pos) = self.red_robots_ids.iter().position(|&x| x == robot.get_id()) {
+                    self.red_robots_ids.remove(pos);
+                }
+            },
+            Team::Blue => {
+                self.blue_robots -= 1;
+                if let Some(pos) = self.blue_robots_ids.iter().position(|&x| x == robot.get_id()) {
+                    self.blue_robots_ids.remove(pos);
+                }
+            },
         }
     }
 }
