@@ -1,3 +1,4 @@
+#[allow(warnings)]
 extern crate CPR;
 
 use CPR::environment::{World};

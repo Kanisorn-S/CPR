@@ -293,12 +293,12 @@ impl Robot {
                 self.plan_actions_to_move_to(self.deposit_box_coord);
                 Action::Turn(Direction::Up)
             } else {
-                // No Action
+                // Turn to opposite direction
                 match self.facing {
-                    Direction::Left => Turn(Direction::Left),
-                    Direction::Right => Turn(Direction::Right),
-                    Direction::Up => Turn(Direction::Up),
-                    Direction::Down => Turn(Direction::Down),
+                    Direction::Left => Turn(Direction::Right),
+                    Direction::Right => Turn(Direction::Left),
+                    Direction::Up => Turn(Direction::Down),
+                    Direction::Down => Turn(Direction::Up),
                 }
             }
         }
@@ -424,25 +424,20 @@ impl Robot {
                 }
             }
             self.knowledge_base.entry(observed_cell.coord).or_insert(observed_cell);
-            // target = observed_cell.coord;
         }
-        // if (self.turn == 0) {
-        //     self.plan_actions_to_move_to(target);
-        //     println!("Plan to move to {:?}: {:?}", target, self.planned_actions);
-        // }
         if !self.send_target {
             if self.target_gold.is_none() {
-                let message = Message::new(
-                    self.id,
-                    MessageType::Simple,
-                    self.id as u32,
-                    MessageContent::Coord(None),
-                );
-                self.send(message, self.receiver_ids.clone());
+                // let message = Message::new(
+                //     self.id,
+                //     MessageType::Simple,
+                //     self.id as u32,
+                //     MessageContent::Coord(None),
+                // );
+                // self.send(message, self.receiver_ids.clone());
             } else {
                 self.send(self.message_to_send.unwrap(), self.receiver_ids.clone());
+                self.send_target = true;
             }
-            self.send_target = true;
         }
 
         if self.consensus_coord.is_some() {
