@@ -103,6 +103,7 @@ pub struct Robot {
     max_gold_seen: u8,
     send_target: bool,
     local_cluster: Vec<char>,
+    clusters: HashMap<Coord, Vec<char>>,
     not_received_simple: u8,
 
     // PAXOS
@@ -172,6 +173,7 @@ impl Robot {
             max_gold_seen: 0,
             send_target: false,
             local_cluster: Vec::new(),
+            clusters: HashMap::new(),
             not_received_simple: n_robots - 1,
 
             // PAXOS
@@ -427,13 +429,6 @@ impl Robot {
         }
         if !self.send_target {
             if self.target_gold.is_none() {
-                // let message = Message::new(
-                //     self.id,
-                //     MessageType::Simple,
-                //     self.id as u32,
-                //     MessageContent::Coord(None),
-                // );
-                // self.send(message, self.receiver_ids.clone());
             } else {
                 self.send(self.message_to_send.unwrap(), self.receiver_ids.clone());
                 self.send_target = true;
