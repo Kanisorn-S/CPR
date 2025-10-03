@@ -841,6 +841,7 @@ impl Robot {
     }
 }
 
+
 // Move Planning
 impl Robot {
     pub fn plan_actions_to_move_to(&mut self, target: Coord) {
