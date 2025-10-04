@@ -19,7 +19,7 @@ pub enum MessageType {
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub enum MessageContent {
-  Coord(Option<Coord>),
+  Coord(Option<Coord>, Option<u8>),
   Pair(char, char),
   Direction(Direction),
 }
@@ -116,8 +116,8 @@ impl Debug for MessageContent {
       MessageContent::Pair(a, b) => {
         write!(f, "Pair {} {}", a, b)
       },
-      MessageContent::Coord(coord) => {
-        write!(f, "{:?}", coord)
+      MessageContent::Coord(coord, gold_amount) => {
+        write!(f, "{:?} has {:?} golds", coord, gold_amount)
       },
       MessageContent::Direction(direction) => {
         write!(f, "{:?}", direction)

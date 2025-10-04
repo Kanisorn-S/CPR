@@ -1,10 +1,10 @@
-const CURRENT_GRID: bool = true;
-const ROBOT_STATUS: bool = true;
+const CURRENT_GRID: bool = false;
+const ROBOT_STATUS: bool = false;
 const ROBOT_OBSERVATION: bool = false;
 const ROBOT_DECISION: bool = true;
-const MESSAGE_BOARD: bool = false;
+const MESSAGE_BOARD: bool = true;
 const ROBOT_KB: bool = false;
-const ROBOT_MESSAGE: bool = false;
+const ROBOT_MESSAGE: bool = true;
 
 pub struct LoggerConfig {
     pub current_grid: bool,

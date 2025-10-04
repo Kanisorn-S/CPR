@@ -100,11 +100,17 @@ pub struct Robot {
     // Local Cluster Identification
     receiver_ids: Vec<char>,
     target_gold: Option<Coord>,
+    target_gold_amount: u8,
     max_gold_seen: u8,
     send_target: bool,
     local_cluster: Vec<char>,
-    clusters: HashMap<Coord, Vec<char>>,
+    clusters: HashMap<(Coord, u8), Vec<char>>,
     not_received_simple: u8,
+
+    // Backup Cluster
+    max_gold_receive: u8,
+    max_gold_receive_coord: Option<Coord>,
+    backup_cluster: Vec<char>,
 
     // PAXOS
     consensus_coord: Option<Coord>,
@@ -164,17 +170,23 @@ impl Robot {
                 id,
                 MessageType::PrepareRequest,
                 id as u32,
-                MessageContent::Coord(Some(current_coord)),
+                MessageContent::Coord(Some(current_coord), Some(0)),
             )),
 
             // Local Cluster Identification
             receiver_ids: make_vec(n_robots, id, team),
             target_gold: None,
+            target_gold_amount: 0,
             max_gold_seen: 0,
             send_target: false,
             local_cluster: Vec::new(),
             clusters: HashMap::new(),
             not_received_simple: n_robots - 1,
+
+            // Backup Cluster
+            max_gold_receive: 0,
+            max_gold_receive_coord: None,
+            backup_cluster: Vec::new(),
 
             // PAXOS
             consensus_coord: None,
@@ -417,11 +429,12 @@ impl Robot {
                 if observed_cell.get_gold_amount().unwrap() > self.max_gold_seen {
                     self.max_gold_seen = observed_cell.get_gold_amount().unwrap();
                     self.target_gold = Some(observed_cell.coord);
+                    self.target_gold_amount = observed_cell.get_gold_amount().unwrap();
                     self.message_to_send = Some(Message::new(
                         self.id,
                         MessageType::Simple,
                         self.id as u32,
-                        MessageContent::Coord(Some(observed_cell.coord)),
+                        MessageContent::Coord(Some(observed_cell.coord), Some(observed_cell.get_gold_amount().unwrap())),
                     ));
                 }
             }
@@ -621,14 +634,15 @@ impl Robot {
 
     fn set_consensus(&mut self, consensus: MessageContent) {
         match consensus {
-            MessageContent::Coord(Some(coord)) => {
+            MessageContent::Coord(Some(coord), _) => {
                 self.consensus_coord = Some(coord);
                 println!("Robot {} has Consensus coord: {:?}", self.team.style(self.id.to_string()), self.consensus_coord);
             },
             MessageContent::Pair(a, b) => {
                 self.consensus_pair = Some((a, b));
+                self.consensus_coord = self.target_gold;
                 println!("Robot {} has Consensus pair: {:?}", self.team.style(self.id.to_string()), self.consensus_pair);
-                self.set_consensus(MessageContent::Coord(Some(self.target_gold.unwrap())));
+                // self.set_consensus(MessageContent::Coord(Some(self.target_gold.unwrap()), Some(0)));
                 if (self.id == a || self.id == b) && self.planned_actions.is_empty() {
                     if self.id == a {
                         self.pre_pickup_pair_id = Some(b);
@@ -787,13 +801,71 @@ impl Robot {
                             self.not_received_simple -= 1;
                             if self.target_gold.is_some() {
                                 match message.message_content {
-                                    MessageContent::Coord(Some(coord)) => {
+                                    MessageContent::Coord(Some(coord), Some(gold_amount)) => {
+                                        let list = self.clusters.entry((coord, gold_amount)).or_insert(vec![]);
+                                        list.push(message.sender_id);
                                         if coord == self.target_gold.unwrap() {
                                             self.local_cluster.push(message.sender_id);
+                                        }
+                                        if gold_amount > self.max_gold_receive {
+                                            self.backup_cluster.clear();
+                                            self.max_gold_receive = gold_amount;
+                                            self.max_gold_receive_coord = Some(coord);
+                                        }
+                                        match self.max_gold_receive_coord {
+                                            Some(max_gold_coord) => {
+                                                if coord == max_gold_coord {
+                                                    self.backup_cluster.push(message.sender_id);
+                                                }
+                                            },
+                                            _ => {}
                                         }
                                     },
                                     _ => {}
                                 }
+                            }
+                            if self.not_received_simple == 0 && self.local_cluster.is_empty() {
+                                let mut singles = Vec::new();
+                                let mut max_key: Option<u8> = Some(self.target_gold_amount);
+                                let mut max_coord: Option<Coord> = self.target_gold;
+
+                                for (&(coord, gold_amount), v) in &self.clusters {
+                                    if v.len() == 1 {
+                                        singles.push(v[0]);
+
+                                        // track max key
+                                        match max_key {
+                                            Some(current) => {
+                                                if gold_amount == current {
+                                                    match max_coord {
+                                                        Some(current_coord) => {
+                                                            if coord.priority(current_coord) {
+                                                                max_coord = Some(coord);
+                                                                max_key = Some(current);
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                } else if gold_amount > current {
+                                                    max_coord = Some(coord);
+                                                    max_key = Some(current);
+                                                }
+                                            },
+                                            _ => {
+                                                max_coord = Some(coord);
+                                                max_key = Some(gold_amount);
+                                            }
+                                        }
+                                        max_key = Some(match max_key {
+                                            Some(current) if current > gold_amount => current,
+                                            _ => gold_amount,
+                                        });
+                                    }
+                                }
+
+                                self.local_cluster = singles;
+                                self.target_gold = max_coord;
+                                self.consensus_coord = max_coord;
                             }
                         }
                     },
