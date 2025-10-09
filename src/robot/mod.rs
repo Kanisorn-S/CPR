@@ -356,13 +356,19 @@ impl Robot {
                 self.plan_actions_to_move_to(self.deposit_box_coord);
                 Action::Turn(Direction::Up)
             } else {
-                // Turn to opposite direction
-                match self.facing {
-                    Direction::Left => Turn(Direction::Right),
-                    Direction::Right => Turn(Direction::Left),
-                    Direction::Up => Turn(Direction::Down),
-                    Direction::Down => Turn(Direction::Up),
+                // Turn randomly
+                match rand::random_range(1..5) {
+                    1 => Turn(Direction::Left),
+                    2 => Turn(Direction::Right),
+                    3 => Turn(Direction::Up),
+                    _ => Turn(Direction::Down),
                 }
+                // match self.facing {
+                //     Direction::Left => Turn(Direction::Right),
+                //     Direction::Right => Turn(Direction::Left),
+                //     Direction::Up => Turn(Direction::Down),
+                //     Direction::Down => Turn(Direction::Up),
+                // }
             }
         }
     }
