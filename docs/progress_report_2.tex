@@ -482,7 +482,11 @@ match received_message {
 \end{enumerate}
 
 \section{Future Work}
-The primary goal for the next milestone is to improve each robot's control logic and communication further and apply the contents of the upcoming lectures.
+\begin{enumerate}
+    \item \textbf{Add Exploration} Currently, the robots rely on its initial observation to select a target gold position; therefore, if a robot is spawned facing a wall, it would simply have no target gold position. Adding exploration would allow the robots to find more gold positions.
+    \item \textbf{Implement Random Message Arrival Time} Currently, each robot receives a random message from a list of available messages, meaning if a message is available, the robot would receive it immediately. Implementing random message arrival time would make the simulation more realistic.
+\end{enumerate}
+
 
 \section{Conclusion}
 The second milestone is completed. The robots are now able to coordinate and agree on which pair should retrieve a given piece of gold, move to its location, and align themselves to face the same direction as their partner. 
