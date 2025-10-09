@@ -136,6 +136,9 @@ pub struct Robot {
     // Move Planning
     planned_actions: Vec<Action>,
 
+    // Next Round
+    received_begin: bool,
+
     // Configurations
     logger_config: LoggerConfig,
 }
@@ -212,19 +215,65 @@ impl Robot {
             // Move Planning
             planned_actions: Vec::new(),
 
+            // Next Round
+            received_begin: true,
+
             // Configuration
             logger_config: LoggerConfig::new(),
         }
     }
 
     pub fn reset(&mut self) {
-        self.was_carrying = false;
+        // General
         self.is_carrying = false;
+        self.was_carrying = false;
+        self.pair_id = None;
+
+        // Local Cluster Identification
+        self.target_gold = None;
+        self.target_gold_amount = 0;
+        self.max_gold_seen = 0;
+        self.send_target = false;
+        self.clusters = HashMap::new();
+        self.not_received_simple = self.receiver_ids.len() as u8;
+        println!("Robot {}: New Global contains {} robots", self.team.style(self.id.to_string()).bold(), self.not_received_simple);
+
+        // Backup Cluster
+        self.max_gold_receive = 0;
+        self.max_gold_receive_coord = None;
+        self.backup_cluster = Vec::new();
+
+        // PAXOS
+        self.consensus_coord = None;
+        self.promised_message = None;
+        self.max_id_seen = 0;
+        self.max_piggyback_id_seen = 0;
+        self.promise_count = 0;
         self.piggybacked = false;
         self.reached_majority = false;
+        self.accept_count = 0;
+        self.majority = (self.local_cluster.len() / 2) as u8;
+        self.increment = self.id as u32;
         self.send_pair_request = false;
-        self.send_target = false;
+        self.consensus_pair = None;
+        self.pre_pickup_pair_id = None;
         self.accepted = false;
+
+        // Direction Consensus
+        self.sent_direction_request = false;
+        self.received_direction = false;
+        self.turned = false;
+
+        println!("{}", "RESET".bold());
+    }
+
+    pub fn scored(&mut self) {
+        self.send(Message::new(
+            self.id,
+            MessageType::Begin,
+            self.id as u32,
+            MessageContent::Coord(None, None),
+        ), self.local_cluster.clone());
     }
 
     pub fn get_team(&self) -> Team {
@@ -640,6 +689,7 @@ impl Robot {
             },
             MessageContent::Pair(a, b) => {
                 self.consensus_pair = Some((a, b));
+                self.received_begin = false;
                 self.consensus_coord = self.target_gold;
                 println!("Robot {} has Consensus pair: {:?}", self.team.style(self.id.to_string()), self.consensus_pair);
                 // self.set_consensus(MessageContent::Coord(Some(self.target_gold.unwrap()), Some(0)));
@@ -896,6 +946,14 @@ impl Robot {
                             _ => {}
                         }
                     },
+                    MessageType::Begin => {
+                        if !self.received_begin {
+                            self.received_begin = true;
+                            self.receiver_ids = self.local_cluster.clone();
+                            self.local_cluster.clear();
+                            self.reset();
+                        }
+                    }
                 }
             },
             None => ()

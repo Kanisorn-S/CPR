@@ -344,6 +344,8 @@ impl World {
                                 carrier.score_gold();
                                 pair_robot.score_gold();
                                 self.red_score += 1;
+                                carrier.scored();
+                                pair_robot.scored();
                                 // println!("{}{}: {}", "|".red(), "RED".red().bold(), self.red_score.to_string().red());
                                 // println!("{}{}: {}", "|".blue(), "BLU".blue().bold(), self.blue_score.to_string().blue());
                                 self.grid.get_mut_cell(self.red_deposit_box).unwrap().increment_score();
@@ -369,6 +371,8 @@ impl World {
                                 carrier.score_gold();
                                 pair_robot.score_gold();
                                 self.blue_score += 1;
+                                carrier.scored();
+                                pair_robot.scored();
                                 // println!("{}{}: {}", "|".red(), "RED".red().bold(), self.red_score.to_string().red());
                                 // println!("{}{}: {}", "|".blue(), "BLU".blue().bold(), self.blue_score.to_string().blue());
                                 self.grid.get_mut_cell(self.blue_deposit_box).unwrap().increment_score();
