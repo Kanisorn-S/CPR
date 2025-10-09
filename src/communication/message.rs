@@ -15,7 +15,7 @@ pub enum MessageType {
   Simple,
   Request,
   Ack,
-  Begin,
+  Done,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]

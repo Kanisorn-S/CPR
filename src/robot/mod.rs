@@ -270,7 +270,7 @@ impl Robot {
     pub fn scored(&mut self) {
         self.send(Message::new(
             self.id,
-            MessageType::Begin,
+            MessageType::Done,
             self.id as u32,
             MessageContent::Coord(None, None),
         ), self.local_cluster.clone());
@@ -946,7 +946,7 @@ impl Robot {
                             _ => {}
                         }
                     },
-                    MessageType::Begin => {
+                    MessageType::Done => {
                         if !self.received_begin {
                             self.received_begin = true;
                             self.receiver_ids = self.local_cluster.clone();
