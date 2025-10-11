@@ -72,33 +72,18 @@ pub fn priority(&self, other: Coord) -> bool {
 \section{Message Arrival Time}
 In previous milestones, each robot maintained its own message box. At every simulation step, a robot would randomly select and receive one message from its box. This meant that as long as a message was in the box, it was guaranteed to be received eventually, since one message is processed per step. If the box contained only a single message, that message would be received immediately in the next simulation step. However, this setup still assumed ideal communication, as it did not account for potential message delays caused by real-world factors such as network congestion or interference.
 
-To better reflect realistic communication behavior, we modified the message delivery mechanism. Each message is now assigned a timer with a random value between one and three simulation steps, as shown in Listing~\ref{lst:msg-timer}. When a robot attempts to receive a message, it first checks the timer. If the timer has not yet reached zero, the message cannot be received, and the robot instead decrements the timer, as shown in Listing~\ref{lst:timer-decrement}. This modification introduces variability in message delivery times, providing a more realistic simulation of communication delays. This new message receiving mechanism is illustrated in Figure~\ref{fig:msg-flowchart}.
+To better reflect realistic communication behavior, we modified the message delivery mechanism. Each message is now assigned a timer, at send time to ensure that a message from the same robot will not always have the same timer, with a random value between one and three simulation steps, as shown in Listing~\ref{lst:msg-timer}. When a robot attempts to receive a message, it first checks the timer. If the timer has not yet reached zero, the message cannot be received, and the robot instead decrements the timer, as shown in Listing~\ref{lst:timer-decrement}. This modification introduces variability in message delivery times, providing a more realistic simulation of communication delays. This new message receiving mechanism is illustrated in Figure~\ref{fig:msg-flowchart}.
 
-\begin{lstlisting}[float, caption={Message struct with timer randomly initialized}, label={lst:msg-timer}]
-pub struct Message {
-  pub sender_id: char,
-  pub msg_type: MessageType,
-  pub id: u32,
-  pub message_content: MessageContent,
-  pub timer: u8,
-}
-
-impl Message {
-  pub fn new(
-    sender_id: char, 
-    msg_type: MessageType, 
-    id: u32, 
-    message_content: MessageContent
-  ) -> Message {
+\begin{lstlisting}[float, caption={Message being randomly assigned a timer before being sent}, label={lst:msg-timer}]
+fn send(&mut self, message: Message, receiver_ids: Vec<char>) {
+  let mut message_board_guard = self.message_board.lock().unwrap();
+  for receiver_id in receiver_ids {
+    let mut random_timer_message = message;
     let mut rng = rand::rng();
     let timer = rng.random_range(0..=3);
-    Self {
-      sender_id,
-      msg_type,
-      id,
-      message_content,
-      timer,
-    }
+    random_timer_message.timer = timer;
+    message_board_guard.get_message_board().entry(receiver_id)
+    .or_default().send_messages(random_timer_message);
   }
 }
 \end{lstlisting}
