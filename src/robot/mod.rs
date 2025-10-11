@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::io;
 use crate::util::Coord;
 use colored::{ColoredString, Colorize};
+use rand::Rng;
 use crate::communication::message::{Message, MessageBoard, MessageContent, MessageType};
 use crate::config::logger::LoggerConfig;
 use crate::environment::cell::Cell;
@@ -131,6 +132,7 @@ pub struct Robot {
     // Direction Consensus
     sent_direction_request: bool,
     received_direction: bool,
+    turn_direction: Option<Direction>,
     turned: bool,
 
     // Move Planning
@@ -209,6 +211,7 @@ impl Robot {
 
             // Direction Consensus
             sent_direction_request: false,
+            turn_direction: None,
             received_direction: false,
             turned: false,
 
@@ -341,14 +344,6 @@ impl Robot {
             println!("{:?}", self.planned_actions);
             self.planned_actions.remove(0)
         } else {
-            // match rand::random_range(1..5) {
-            //     1 => Action::Turn(Direction::Left),
-            //     2 => Action::Turn(Direction::Right),
-            //     3 => Action::Turn(Direction::Up),
-            //     4 => Action::Turn(Direction::Down),
-            //     5 => Action::Move,
-            //     _ => Action::PickUp,
-            // }
             // Spam PICKUP
             if !self.is_carrying() && self.pre_pickup_pair_id.is_some() && self.turned {
                 Action::PickUp
@@ -504,24 +499,29 @@ impl Robot {
         }
 
         if self.consensus_coord.is_some() {
-            if self.current_coord == self.target_gold.unwrap() && !self.sent_direction_request && !self.received_direction {
-                if self.pre_pickup_pair_id.is_some() {
-                    let propose_direction;
-                    match rand::random_range(1..5) {
-                        1 => propose_direction = Direction::Right,
-                        2 => propose_direction = Direction::Left,
-                        3 => propose_direction = Direction::Up,
-                        4 => propose_direction = Direction::Down,
-                        _ => propose_direction = Direction::Right,
-                    }
-                    self.send(Message::new(
-                        self.id,
-                        MessageType::Request,
-                        self.id as u32,
-                        MessageContent::Direction(propose_direction),
-                    ), vec![self.pre_pickup_pair_id.unwrap()]);
-                    self.sent_direction_request = true;
+            if self.current_coord == self.target_gold.unwrap() {
+                if !self.received_direction && !self.sent_direction_request {
+                    if self.pre_pickup_pair_id.is_some() {
+                        let propose_direction;
+                        match rand::random_range(1..5) {
+                            1 => propose_direction = Direction::Right,
+                            2 => propose_direction = Direction::Left,
+                            3 => propose_direction = Direction::Up,
+                            4 => propose_direction = Direction::Down,
+                            _ => propose_direction = Direction::Right,
+                        }
+                        self.send(Message::new(
+                            self.id,
+                            MessageType::Request,
+                            self.id as u32,
+                            MessageContent::Direction(propose_direction),
+                        ), vec![self.pre_pickup_pair_id.unwrap()]);
+                        self.sent_direction_request = true;
 
+                    }
+                } else if self.turn_direction.is_some() {
+                    self.planned_actions.push(Turn(self.turn_direction.unwrap()));
+                    self.turn_direction = None;
                 }
             }
         }
@@ -664,7 +664,11 @@ impl Robot {
     fn send(&mut self, message: Message, receiver_ids: Vec<char>) {
         let mut message_board_guard = self.message_board.lock().unwrap();
         for receiver_id in receiver_ids {
-            message_board_guard.get_message_board().entry(receiver_id).or_default().send_messages(message);
+            let mut random_timer_message = message;
+            let mut rng = rand::rng();
+            let timer = rng.random_range(0..=3);
+            random_timer_message.timer = timer;
+            message_board_guard.get_message_board().entry(receiver_id).or_default().send_messages(random_timer_message);
         }
     }
 
@@ -935,6 +939,7 @@ impl Robot {
                             ), vec![message.sender_id]);
                             match message.message_content {
                                 MessageContent::Direction(direction) => {
+                                    self.turn_direction = Some(direction);
                                     self.planned_actions.push(Turn(direction));
                                     self.received_direction = true;
                                     self.turned = true;

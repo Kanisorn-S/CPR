@@ -1,6 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::fmt::{Debug, Display, Formatter};
 use colored::Colorize;
+use rand::Rng;
 use crate::robot::Direction;
 use crate::util::Coord;
 
@@ -31,56 +32,70 @@ pub struct Message {
   pub msg_type: MessageType,
   pub id: u32,
   pub message_content: MessageContent,
+  pub timer: u8,
 }
 
 impl Message {
   pub fn new(sender_id: char, msg_type: MessageType, id: u32, message_content: MessageContent) -> Message {
+    let mut rng = rand::rng();
+    let timer = rng.random_range(0..=3);
     Self {
       sender_id,
       msg_type,
       id,
       message_content,
+      timer,
     }
   }
 }
 
 #[derive(Default)]
 pub struct MessageBox {
-  current_messages: HashSet<Message>,
-  new_messages: HashSet<Message>,
+  current_messages: Vec<Message>,
+  new_messages: Vec<Message>,
 }
 
 impl MessageBox {
   pub fn new() -> MessageBox {
     Self {
-      current_messages: HashSet::new(),
-      new_messages: HashSet::new(),
+      current_messages: Vec::new(),
+      new_messages: Vec::new(),
     }
   }
 
   pub fn update_messages(&mut self) {
-    self.current_messages.extend(self.new_messages.drain());
+    self.current_messages.extend(self.new_messages.drain(..));
   }
 
   pub fn send_messages(&mut self, message: Message) {
-    self.new_messages.insert(message);
+    self.new_messages.push(message);
   }
 
   pub fn retrieve_messages(&mut self) -> Option<Message> {
-    let random_message = self.current_messages.iter().next();
-    let mut return_message = None;
-    let mut message_available = false;
-    match random_message {
-      Some(message) => {
-        return_message = Some(message.clone());
-        message_available = true;
-      },
-      None => {}
+    if !self.current_messages.is_empty() {
+      let mut rng = rand::rng();
+      let random_index = rng.random_range(0..self.current_messages.len());
+      let random_message = self.current_messages.get_mut(random_index);
+      let mut return_message = None;
+      let mut message_available = false;
+      match random_message {
+        Some(message) => {
+          if (message.timer == 0) {
+            return_message = Some(message.clone());
+            message_available = true;
+          } else {
+            message.timer -= 1;
+          }
+        },
+        None => {}
+      }
+      if (message_available) {
+        self.current_messages.remove(random_index);
+      }
+      return_message
+    } else {
+      None
     }
-    if (message_available) {
-      self.current_messages.remove(&return_message.unwrap());
-    }
-    return_message
   }
 }
 
@@ -130,7 +145,7 @@ impl Debug for MessageContent {
 
 impl Debug for Message {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}: {:?} - {:?} from {}", self.id, self.msg_type, self.message_content, self.sender_id)
+    write!(f, "{}: {:?} - {:?} from {} ({})", self.id, self.msg_type, self.message_content, self.sender_id, self.timer)
   }
 }
 
