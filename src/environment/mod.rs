@@ -332,6 +332,8 @@ impl World {
     fn check_drop_deposit(&mut self) {
         let red_carriers = self.red_team.get_carrying_robot();
         let blue_carriers = self.blue_team.get_carrying_robot();
+        println!("red_carriers: {:?}", red_carriers);
+        println!("blue_carriers: {:?}", blue_carriers);
         match red_carriers {
             Some(carriers) => {
                 let mut robot_pos: HashMap<char, &mut Robot> = HashMap::new();

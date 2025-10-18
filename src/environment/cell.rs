@@ -12,11 +12,11 @@ enum CellContent {
 #[derive(Clone)]
 pub struct Cell {
     pub coord: Coord,
-    red_robots: u8,
-    red_robots_ids: Vec<char>,
-    blue_robots: u8,
-    blue_robots_ids: Vec<char>,
-    content: Option<CellContent>,
+    pub red_robots: u8,
+    pub red_robots_ids: Vec<char>,
+    pub blue_robots: u8,
+    pub blue_robots_ids: Vec<char>,
+    pub content: Option<CellContent>,
 }
 
 // Constructor
