@@ -1,0 +1,25 @@
+channel req, ack : {1, 2}
+channel reach, prio, turnL, turnR
+
+ROBOT1 = (req?1 -> RESPOND1 [] reach -> SEND)
+
+RESPOND1 = (ack!2 -> T1R [] prio -> RESPOND1)
+SEND = (req!2 -> WAIT1 [] WAIT1)
+WAIT1 = (ack?1 -> T1L [] req?1 -> RESPONDCOND1)
+RESPONDCOND1 = ((prio -> RESPOND1 [] WAIT1) [] SEND)
+T1L = turnL -> ROBOT1
+T1R = turnR -> ROBOT1
+
+ROBOT2 = (req?2 -> RESPOND2 [] reach -> SENDP)
+
+RESPOND2 = (ack!1 -> T2L [] prio -> RESPOND2)
+SENDP = ((req!1 -> (prio -> WAIT2)) [] WAIT2)
+WAIT2 = (ack?2 -> T2R [] req?2 -> RESPONDCOND2)
+RESPONDCOND2 = ((prio -> RESPOND2 [] WAIT2) [] SENDP)
+T2L = turnL -> ROBOT2
+T2R = turnR -> ROBOT2
+
+
+SYSTEM = ROBOT1 [| {| req, ack, prio, turnL, turnR |} |] ROBOT2
+
+assert SYSTEM :[deadlock free]
