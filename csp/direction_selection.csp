@@ -1,25 +1,24 @@
 channel req, ack : {1, 2}
-channel reach, prio, turnL, turnR
+channel reach, prio, turnL, turnR, nprio
 
 ROBOT1 = (req?1 -> RESPOND1 [] reach -> SEND)
 
-RESPOND1 = (ack!2 -> T1R [] prio -> RESPOND1)
-SEND = (req!2 -> WAIT1 [] WAIT1)
+RESPOND1 = ((ack!2 -> T1R [] prio -> RESPOND1) [] nprio -> RESPOND1)
+SEND = ((req!2 -> (nprio -> WAIT1)) [] req?1 -> RESPONDCOND1)
 WAIT1 = (ack?1 -> T1L [] req?1 -> RESPONDCOND1)
-RESPONDCOND1 = ((prio -> RESPOND1 [] WAIT1) [] SEND)
+RESPONDCOND1 = (prio -> RESPOND1 [] nprio -> SEND) 
 T1L = turnL -> ROBOT1
 T1R = turnR -> ROBOT1
 
 ROBOT2 = (req?2 -> RESPOND2 [] reach -> SENDP)
 
-RESPOND2 = (ack!1 -> T2L [] prio -> RESPOND2)
-SENDP = ((req!1 -> (prio -> WAIT2)) [] WAIT2)
+RESPOND2 = ((ack!1 -> T2L [] prio -> RESPOND2) [] nprio -> RESPOND2)
+SENDP = ((req!1 -> (prio -> WAIT2)) [] req?2 -> RESPONDCOND2)
 WAIT2 = (ack?2 -> T2R [] req?2 -> RESPONDCOND2)
-RESPONDCOND2 = ((prio -> RESPOND2 [] WAIT2) [] SENDP)
+RESPONDCOND2 = (prio -> RESPOND2 [] nprio -> SENDP)
 T2L = turnL -> ROBOT2
 T2R = turnR -> ROBOT2
 
 
-SYSTEM = ROBOT1 [| {| req, ack, prio, turnL, turnR |} |] ROBOT2
-
+SYSTEM = ROBOT1 [| {| req, ack, prio, nprio, turnL, turnR |} |] ROBOT2
 assert SYSTEM :[deadlock free]

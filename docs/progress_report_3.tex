@@ -40,13 +40,13 @@ Before implementing the new features, we verified the correctness of the previou
 
 \begin{align}
   \text{\texttt{ROBOT}} &= (\text{req?m} \then \text{\texttt{RESPOND}} \extchoice \text{reach} \then \text{\texttt{SEND}} ) \label{eq:robot}\\
-  \text{\texttt{RESPOND}} &= (\text{ack!m} \then \text{\texttt{T}} \extchoice \text{prio} \then \text{\texttt{RESPOND}}) \label{eq:respond}\\
+  \text{\texttt{RESPOND}} &= ((\text{ack!m} \then \text{\texttt{T}} \extchoice \text{prio} \then \text{\texttt{RESPOND}}) \extchoice \text{nprio} \then \text{\texttt{RESPOND}}) \label{eq:respond}\\
   \text{\texttt{WAIT}} &= (\text{ack?m} \then \texttt{T} \extchoice \text{req?m} \then \text{\texttt{RESPONDCOND}}) \label{eq:wait}\\
-  \text{\texttt{RESPONDCOND}} &= ((\text{prio} \then \text{\texttt{RESPOND}} \extchoice \text{\texttt{WAIT}}) \extchoice \text{\texttt{SEND}}) \label{eq:respondcond}\\
+  \text{\texttt{RESPONDCOND}} &= (\text{prio} \then \text{\texttt{RESPOND}} \extchoice \text{nprio} \then \text{\texttt{SEND}}) \label{eq:respondcond}\\
   \text{\texttt{T}} &= (\text{turn} \then \text{\texttt{ROBOT}}) \label{eq:t}\\
-  \text{\texttt{SEND1}} &= (\text{req!m} \then \text{\texttt{WAIT}} \extchoice \text{\texttt{WAIT}}) \label{eq:send1}\\
-  \text{\texttt{SEND2}} &= ((\text{req!m} \then (\text{prio} \then \text{\texttt{WAIT}})) \extchoice \text{\texttt{WAIT}}) \label{eq:send2}\\
-  \text{\texttt{SYSTEM}} &= (\text{\texttt{ROBOT1}} | \{ \text{req}, \text{ack}, \text{prio}, \text{turn} \} | \text{\texttt{ROBOT2}}) \label{eq:system}
+  \text{\texttt{SEND1}} &= ((\text{req!m} \then (\text{nprio} \then \text{\texttt{WAIT}})) \extchoice \text{req?m} \then \text{\texttt{RESPONDCOND}}) \label{eq:send1}\\
+  \text{\texttt{SEND2}} &= ((\text{req!m} \then (\text{prio} \then \text{\texttt{WAIT}})) \extchoice \text{req?m} \then \text{\texttt{RESPONDCOND}}) \label{eq:send2}\\
+  \text{\texttt{SYSTEM}} &= (\text{\texttt{ROBOT1}} | \{ \text{req}, \text{ack}, \text{prio}, \text{turn}, \text{nprio}\} | \text{\texttt{ROBOT2}}) \label{eq:system}
 \end{align}
 
 To model the \texttt{Direction Selection} protocol, we defined several processes to represent the robot's behavior during direction selection and message exchange.
@@ -54,44 +54,43 @@ To model the \texttt{Direction Selection} protocol, we defined several processes
 \begin{itemize}
 \item The \texttt{ROBOT} process models the robot's behavior during direction selection, as shown in~\eqref{eq:robot}. If the robot receives a \texttt{DirectionRequest} message before it reaches the target position, it starts the \texttt{RESPOND} process, otherwise, when it reaches the target position, it transitions to the \texttt{SEND} process.
 
-\item The \texttt{RESPOND} process models the robot's response to a \texttt{DirectionRequest} it received before reaching the target position, where it sends back an \texttt{Acknowledgment} message and then transitions into the \texttt{T} process regardless of whether the sender has priority (has higher id) or not, as shown in~\eqref{eq:respond}.
+\item The \texttt{RESPOND} process models the robot's response to a \texttt{DirectionRequest} it received before reaching the target position, where it sends back an \texttt{Acknowledgment} message and then transitions into the \texttt{T} process regardless of whether the sender has priority (\texttt{prio}) (has higher id) or not (\texttt{nprio}), as shown in~\eqref{eq:respond}.
 
 \item The \texttt{WAIT} process models the robot's behavior when it has sent a \texttt{DirectionRequest} message and is waiting for an \texttt{Acknowledgment} message from the other robot, as shown in~\eqref{eq:wait}. If it receives the \texttt{Acknowledgment} message, it transitions into the \texttt{T} process. However, if it receives another \texttt{DirectionRequest} message from the other robot while waiting, it starts the \texttt{RESPONDCOND} process.
 
-\item The \texttt{RESPONDCOND} process models the robot's behavior when it has received a \\\texttt{DirectionRequest} message while waiting for an \texttt{Acknowledgment} message. In this case, if the sender has priority, it transitions into the \texttt{RESPOND} process; otherwise, it transitions back to the \texttt{WAIT} process. If the robot is not waiting for an \texttt{Acknowledgment} message (the robot has not send a \texttt{DirectionRequest}), it transitions into the \texttt{SEND} process.
+\item The \texttt{RESPONDCOND} process models the robot's behavior when it has received a \\\texttt{DirectionRequest} message while waiting for an \texttt{Acknowledgment} message. In this case, if the sender has priority, it transitions into the \texttt{RESPOND} process; otherwise, it sends its own \texttt{DirectionRequest} then continues to wait for incoming messages in the \texttt{SEND} process.
 
 \item The \texttt{T} process models the robot turning to the selected direction and then transitioning back to the \texttt{ROBOT} process, as shown in~\eqref{eq:t}.
 
-\item The \texttt{SEND} process is divided into two cases. The first case, \texttt{SEND1}, shown in~\eqref{eq:send1}, models a robot with lower id sending a \texttt{DirectionRequest} message to a robot with higher id (it does not have priority). The second case, \texttt{SEND2}, shown in~\eqref{eq:send2}, models a robot with higher id sending a \texttt{DirectionRequest} message to a robot with lower id (it has priority). After sending the message, it transitions into the \texttt{WAIT} process to wait for an \texttt{Acknowledgment} message.
+\item The \texttt{SEND} process is divided into two cases. The first case, \texttt{SEND1}, shown in~\eqref{eq:send1}, models a robot with lower id sending a \texttt{DirectionRequest} message to a robot with higher id (it does not have priority (send with \texttt{nprio})). The second case, \texttt{SEND2}, shown in~\eqref{eq:send2}, models a robot with higher id sending a \texttt{DirectionRequest} message to a robot with lower id (it has priority (send with \texttt{prio})). After sending the message, it transitions into the \texttt{WAIT} process to wait for an \texttt{Acknowledgment} message.
 \end{itemize}
 
 To verify the absence of deadlocks in the \texttt{Direction Selection} protocol, we translated the above CSP model into $CSP_M$ syntax~\cite{cspm}, as shown in Listing~\ref{lst:csp}, and created a system of two robots communicating with each other, as shown in~\eqref{eq:system}.
 
 \begin{lstlisting}[float, caption={\texttt{Direction Selection} protocol represented using $CSP_M$}, label={lst:csp}]
 channel req, ack : {1, 2}
-channel reach, prio, turnL, turnR
+channel reach, prio, turnL, turnR, nprio
 
 ROBOT1 = (req?1 -> RESPOND1 [] reach -> SEND)
 
-RESPOND1 = (ack!2 -> T1R [] prio -> RESPOND1)
-SEND = (req!2 -> WAIT1 [] WAIT1)
+RESPOND1 = ((ack!2 -> T1R [] prio -> RESPOND1) [] nprio -> RESPOND1)
+SEND = ((req!2 -> (nprio -> WAIT1)) [] req?1 -> RESPONDCOND1)
 WAIT1 = (ack?1 -> T1L [] req?1 -> RESPONDCOND1)
-RESPONDCOND1 = ((prio -> RESPOND1 [] WAIT1) [] SEND)
+RESPONDCOND1 = (prio -> RESPOND1 [] nprio -> SEND) 
 T1L = turnL -> ROBOT1
 T1R = turnR -> ROBOT1
 
 ROBOT2 = (req?2 -> RESPOND2 [] reach -> SENDP)
 
-RESPOND2 = (ack!1 -> T2L [] prio -> RESPOND2)
-SENDP = ((req!1 -> (prio -> WAIT2)) [] WAIT2)
+RESPOND2 = ((ack!1 -> T2L [] prio -> RESPOND2) [] nprio -> RESPOND2)
+SENDP = ((req!1 -> (prio -> WAIT2)) [] req?2 -> RESPONDCOND2)
 WAIT2 = (ack?2 -> T2R [] req?2 -> RESPONDCOND2)
-RESPONDCOND2 = ((prio -> RESPOND2 [] WAIT2) [] SENDP)
+RESPONDCOND2 = (prio -> RESPOND2 [] nprio -> SENDP)
 T2L = turnL -> ROBOT2
 T2R = turnR -> ROBOT2
 
 
-SYSTEM = ROBOT1 [| {| req, ack, prio, turnL, turnR |} |] ROBOT2
-
+SYSTEM = ROBOT1 [| {| req, ack, prio, nprio, turnL, turnR |} |] ROBOT2
 assert SYSTEM :[deadlock free]
 \end{lstlisting}
 
