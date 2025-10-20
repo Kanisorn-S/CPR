@@ -237,6 +237,7 @@ impl Robot {
     }
 
     pub fn reset(&mut self) {
+
         // General
         self.is_carrying = false;
         self.was_carrying = false;
@@ -930,6 +931,12 @@ impl Robot {
                         self.send(new_message_to_send, self.local_cluster.clone());
                     },
                     MessageType::Simple => {
+                        if !self.received_begin {
+                            self.received_begin = true;
+                            self.receiver_ids = self.local_cluster.clone();
+                            self.local_cluster.clear();
+                            self.reset();
+                        }
                         if self.not_received_simple > 0 {
                             self.not_received_simple -= 1;
                             if self.target_gold.is_some() {
@@ -1037,21 +1044,23 @@ impl Robot {
                         }
                     },
                     MessageType::Request => {
-                        if self.id < message.sender_id || self.current_coord != self.target_gold.unwrap() {
-                            self.send(Message::new(
-                                self.id,
-                                MessageType::Ack,
-                                self.id as u32,
-                                message.message_content,
-                            ), vec![message.sender_id]);
-                            match message.message_content {
-                                MessageContent::Direction(direction) => {
-                                    self.turn_direction = Some(direction);
-                                    self.planned_actions.push(Turn(direction));
-                                    self.received_direction = true;
-                                    self.turned = true;
-                                },
-                                _ => {}
+                        if self.target_gold.is_some() {
+                            if self.id < message.sender_id || self.current_coord != self.target_gold.unwrap() {
+                                self.send(Message::new(
+                                    self.id,
+                                    MessageType::Ack,
+                                    self.id as u32,
+                                    message.message_content,
+                                ), vec![message.sender_id]);
+                                match message.message_content {
+                                    MessageContent::Direction(direction) => {
+                                        self.turn_direction = Some(direction);
+                                        self.planned_actions.push(Turn(direction));
+                                        self.received_direction = true;
+                                        self.turned = true;
+                                    },
+                                    _ => {}
+                                }
                             }
                         }
                     },
@@ -1075,7 +1084,7 @@ impl Robot {
                     MessageType::GetOut => {
                         match self.combined_pair_id {
                             Some(combined_pair_id) => {
-                                if message.id > combined_pair_id && self.current_coord == self.target_gold.unwrap() {
+                                if message.id > combined_pair_id && self.current_coord == self.target_gold.unwrap() && !self.is_carrying {
                                     self.scored();
                                     self.reset();
                                     self.planned_actions.clear();
