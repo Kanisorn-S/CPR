@@ -1,7 +1,7 @@
 const CURRENT_GRID: bool = true;
 const ROBOT_STATUS: bool = true;
 const ROBOT_OBSERVATION: bool = false;
-const ROBOT_DECISION: bool = true;
+const ROBOT_DECISION: bool = false;
 const MESSAGE_BOARD: bool = false;
 const ROBOT_KB: bool = false;
 const ROBOT_MESSAGE: bool = false;

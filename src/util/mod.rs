@@ -14,6 +14,16 @@ impl Coord {
     pub fn new(x: usize, y: usize) -> Coord {
         Coord { x, y }
     }
+    
+    pub fn priority(&self, other: Coord) -> bool {
+        if self.x > other.x {
+            true
+        } else if self.x < other.x {
+            false
+        } else {
+            self.y > other.y
+        }
+    }
 
     pub fn random(range_x: Range<usize>, range_y: Range<usize>) -> Coord {
         let x = rand::random_range(range_x);

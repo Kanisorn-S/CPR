@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::io;
 use crate::util::Coord;
 use colored::{ColoredString, Colorize};
+use rand::Rng;
 use crate::communication::message::{Message, MessageBoard, MessageContent, MessageType};
 use crate::config::logger::LoggerConfig;
 use crate::environment::cell::Cell;
@@ -100,10 +101,17 @@ pub struct Robot {
     // Local Cluster Identification
     receiver_ids: Vec<char>,
     target_gold: Option<Coord>,
+    target_gold_amount: u8,
     max_gold_seen: u8,
     send_target: bool,
     local_cluster: Vec<char>,
+    clusters: HashMap<(Coord, u8), Vec<char>>,
     not_received_simple: u8,
+
+    // Backup Cluster
+    max_gold_receive: u8,
+    max_gold_receive_coord: Option<Coord>,
+    backup_cluster: Vec<char>,
 
     // PAXOS
     consensus_coord: Option<Coord>,
@@ -124,10 +132,14 @@ pub struct Robot {
     // Direction Consensus
     sent_direction_request: bool,
     received_direction: bool,
+    turn_direction: Option<Direction>,
     turned: bool,
 
     // Move Planning
     planned_actions: Vec<Action>,
+
+    // Next Round
+    received_begin: bool,
 
     // Configurations
     logger_config: LoggerConfig,
@@ -163,16 +175,23 @@ impl Robot {
                 id,
                 MessageType::PrepareRequest,
                 id as u32,
-                MessageContent::Coord(Some(current_coord)),
+                MessageContent::Coord(Some(current_coord), Some(0)),
             )),
 
             // Local Cluster Identification
             receiver_ids: make_vec(n_robots, id, team),
             target_gold: None,
+            target_gold_amount: 0,
             max_gold_seen: 0,
             send_target: false,
             local_cluster: Vec::new(),
+            clusters: HashMap::new(),
             not_received_simple: n_robots - 1,
+
+            // Backup Cluster
+            max_gold_receive: 0,
+            max_gold_receive_coord: None,
+            backup_cluster: Vec::new(),
 
             // PAXOS
             consensus_coord: None,
@@ -192,11 +211,15 @@ impl Robot {
 
             // Direction Consensus
             sent_direction_request: false,
+            turn_direction: None,
             received_direction: false,
             turned: false,
 
             // Move Planning
             planned_actions: Vec::new(),
+
+            // Next Round
+            received_begin: true,
 
             // Configuration
             logger_config: LoggerConfig::new(),
@@ -204,13 +227,56 @@ impl Robot {
     }
 
     pub fn reset(&mut self) {
-        self.was_carrying = false;
+        // General
         self.is_carrying = false;
+        self.was_carrying = false;
+        self.pair_id = None;
+
+        // Local Cluster Identification
+        self.target_gold = None;
+        self.target_gold_amount = 0;
+        self.max_gold_seen = 0;
+        self.send_target = false;
+        self.clusters = HashMap::new();
+        self.not_received_simple = self.receiver_ids.len() as u8;
+        println!("Robot {}: New Global contains {} robots", self.team.style(self.id.to_string()).bold(), self.not_received_simple);
+
+        // Backup Cluster
+        self.max_gold_receive = 0;
+        self.max_gold_receive_coord = None;
+        self.backup_cluster = Vec::new();
+
+        // PAXOS
+        self.consensus_coord = None;
+        self.promised_message = None;
+        self.max_id_seen = 0;
+        self.max_piggyback_id_seen = 0;
+        self.promise_count = 0;
         self.piggybacked = false;
         self.reached_majority = false;
+        self.accept_count = 0;
+        self.majority = (self.local_cluster.len() / 2) as u8;
+        self.increment = self.id as u32;
         self.send_pair_request = false;
-        self.send_target = false;
+        self.consensus_pair = None;
+        self.pre_pickup_pair_id = None;
         self.accepted = false;
+
+        // Direction Consensus
+        self.sent_direction_request = false;
+        self.received_direction = false;
+        self.turned = false;
+
+        println!("{}", "RESET".bold());
+    }
+
+    pub fn scored(&mut self) {
+        self.send(Message::new(
+            self.id,
+            MessageType::Done,
+            self.id as u32,
+            MessageContent::Coord(None, None),
+        ), self.local_cluster.clone());
     }
 
     pub fn get_team(&self) -> Team {
@@ -278,14 +344,6 @@ impl Robot {
             println!("{:?}", self.planned_actions);
             self.planned_actions.remove(0)
         } else {
-            // match rand::random_range(1..5) {
-            //     1 => Action::Turn(Direction::Left),
-            //     2 => Action::Turn(Direction::Right),
-            //     3 => Action::Turn(Direction::Up),
-            //     4 => Action::Turn(Direction::Down),
-            //     5 => Action::Move,
-            //     _ => Action::PickUp,
-            // }
             // Spam PICKUP
             if !self.is_carrying() && self.pre_pickup_pair_id.is_some() && self.turned {
                 Action::PickUp
@@ -293,13 +351,19 @@ impl Robot {
                 self.plan_actions_to_move_to(self.deposit_box_coord);
                 Action::Turn(Direction::Up)
             } else {
-                // No Action
-                match self.facing {
-                    Direction::Left => Turn(Direction::Left),
-                    Direction::Right => Turn(Direction::Right),
-                    Direction::Up => Turn(Direction::Up),
-                    Direction::Down => Turn(Direction::Down),
+                // Turn randomly
+                match rand::random_range(1..5) {
+                    1 => Turn(Direction::Left),
+                    2 => Turn(Direction::Right),
+                    3 => Turn(Direction::Up),
+                    _ => Turn(Direction::Down),
                 }
+                // match self.facing {
+                //     Direction::Left => Turn(Direction::Right),
+                //     Direction::Right => Turn(Direction::Left),
+                //     Direction::Up => Turn(Direction::Down),
+                //     Direction::Down => Turn(Direction::Up),
+                // }
             }
         }
     }
@@ -415,55 +479,49 @@ impl Robot {
                 if observed_cell.get_gold_amount().unwrap() > self.max_gold_seen {
                     self.max_gold_seen = observed_cell.get_gold_amount().unwrap();
                     self.target_gold = Some(observed_cell.coord);
+                    self.target_gold_amount = observed_cell.get_gold_amount().unwrap();
                     self.message_to_send = Some(Message::new(
                         self.id,
                         MessageType::Simple,
                         self.id as u32,
-                        MessageContent::Coord(Some(observed_cell.coord)),
+                        MessageContent::Coord(Some(observed_cell.coord), Some(observed_cell.get_gold_amount().unwrap())),
                     ));
                 }
             }
             self.knowledge_base.entry(observed_cell.coord).or_insert(observed_cell);
-            // target = observed_cell.coord;
         }
-        // if (self.turn == 0) {
-        //     self.plan_actions_to_move_to(target);
-        //     println!("Plan to move to {:?}: {:?}", target, self.planned_actions);
-        // }
         if !self.send_target {
             if self.target_gold.is_none() {
-                let message = Message::new(
-                    self.id,
-                    MessageType::Simple,
-                    self.id as u32,
-                    MessageContent::Coord(None),
-                );
-                self.send(message, self.receiver_ids.clone());
             } else {
                 self.send(self.message_to_send.unwrap(), self.receiver_ids.clone());
+                self.send_target = true;
             }
-            self.send_target = true;
         }
 
         if self.consensus_coord.is_some() {
-            if self.current_coord == self.target_gold.unwrap() && !self.sent_direction_request && !self.received_direction {
-                if self.pre_pickup_pair_id.is_some() {
-                    let propose_direction;
-                    match rand::random_range(1..5) {
-                        1 => propose_direction = Direction::Right,
-                        2 => propose_direction = Direction::Left,
-                        3 => propose_direction = Direction::Up,
-                        4 => propose_direction = Direction::Down,
-                        _ => propose_direction = Direction::Right,
-                    }
-                    self.send(Message::new(
-                        self.id,
-                        MessageType::Request,
-                        self.id as u32,
-                        MessageContent::Direction(propose_direction),
-                    ), vec![self.pre_pickup_pair_id.unwrap()]);
-                    self.sent_direction_request = true;
+            if self.current_coord == self.target_gold.unwrap() {
+                if !self.received_direction && !self.sent_direction_request {
+                    if self.pre_pickup_pair_id.is_some() {
+                        let propose_direction;
+                        match rand::random_range(1..5) {
+                            1 => propose_direction = Direction::Right,
+                            2 => propose_direction = Direction::Left,
+                            3 => propose_direction = Direction::Up,
+                            4 => propose_direction = Direction::Down,
+                            _ => propose_direction = Direction::Right,
+                        }
+                        self.send(Message::new(
+                            self.id,
+                            MessageType::Request,
+                            self.id as u32,
+                            MessageContent::Direction(propose_direction),
+                        ), vec![self.pre_pickup_pair_id.unwrap()]);
+                        self.sent_direction_request = true;
 
+                    }
+                } else if self.turn_direction.is_some() {
+                    self.planned_actions.push(Turn(self.turn_direction.unwrap()));
+                    self.turn_direction = None;
                 }
             }
         }
@@ -606,7 +664,11 @@ impl Robot {
     fn send(&mut self, message: Message, receiver_ids: Vec<char>) {
         let mut message_board_guard = self.message_board.lock().unwrap();
         for receiver_id in receiver_ids {
-            message_board_guard.get_message_board().entry(receiver_id).or_default().send_messages(message);
+            let mut random_timer_message = message;
+            let mut rng = rand::rng();
+            let timer = rng.random_range(0..=3);
+            random_timer_message.timer = timer;
+            message_board_guard.get_message_board().entry(receiver_id).or_default().send_messages(random_timer_message);
         }
     }
 
@@ -631,15 +693,17 @@ impl Robot {
 
     fn set_consensus(&mut self, consensus: MessageContent) {
         match consensus {
-            MessageContent::Coord(Some(coord)) => {
+            MessageContent::Coord(Some(coord), _) => {
                 self.consensus_coord = Some(coord);
                 println!("Robot {} has Consensus coord: {:?}", self.team.style(self.id.to_string()), self.consensus_coord);
             },
             MessageContent::Pair(a, b) => {
                 self.consensus_pair = Some((a, b));
+                self.received_begin = false;
+                self.consensus_coord = self.target_gold;
                 println!("Robot {} has Consensus pair: {:?}", self.team.style(self.id.to_string()), self.consensus_pair);
-                self.set_consensus(MessageContent::Coord(Some(self.target_gold.unwrap())));
-                if (self.id == a || self.id == b) && self.planned_actions.is_empty() {
+                // self.set_consensus(MessageContent::Coord(Some(self.target_gold.unwrap()), Some(0)));
+                if (self.id == a || self.id == b) && self.planned_actions.is_empty() && self.target_gold.is_some() {
                     if self.id == a {
                         self.pre_pickup_pair_id = Some(b);
                     } else {
@@ -797,13 +861,71 @@ impl Robot {
                             self.not_received_simple -= 1;
                             if self.target_gold.is_some() {
                                 match message.message_content {
-                                    MessageContent::Coord(Some(coord)) => {
+                                    MessageContent::Coord(Some(coord), Some(gold_amount)) => {
+                                        let list = self.clusters.entry((coord, gold_amount)).or_insert(vec![]);
+                                        list.push(message.sender_id);
                                         if coord == self.target_gold.unwrap() {
                                             self.local_cluster.push(message.sender_id);
+                                        }
+                                        if gold_amount > self.max_gold_receive {
+                                            self.backup_cluster.clear();
+                                            self.max_gold_receive = gold_amount;
+                                            self.max_gold_receive_coord = Some(coord);
+                                        }
+                                        match self.max_gold_receive_coord {
+                                            Some(max_gold_coord) => {
+                                                if coord == max_gold_coord {
+                                                    self.backup_cluster.push(message.sender_id);
+                                                }
+                                            },
+                                            _ => {}
                                         }
                                     },
                                     _ => {}
                                 }
+                            }
+                            if self.not_received_simple == 0 && self.local_cluster.is_empty() {
+                                let mut singles = Vec::new();
+                                let mut max_key: Option<u8> = Some(self.target_gold_amount);
+                                let mut max_coord: Option<Coord> = self.target_gold;
+
+                                for (&(coord, gold_amount), v) in &self.clusters {
+                                    if v.len() == 1 {
+                                        singles.push(v[0]);
+
+                                        // track max key
+                                        match max_key {
+                                            Some(current) => {
+                                                if gold_amount == current {
+                                                    match max_coord {
+                                                        Some(current_coord) => {
+                                                            if coord.priority(current_coord) {
+                                                                max_coord = Some(coord);
+                                                                max_key = Some(current);
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                } else if gold_amount > current {
+                                                    max_coord = Some(coord);
+                                                    max_key = Some(current);
+                                                }
+                                            },
+                                            _ => {
+                                                max_coord = Some(coord);
+                                                max_key = Some(gold_amount);
+                                            }
+                                        }
+                                        max_key = Some(match max_key {
+                                            Some(current) if current > gold_amount => current,
+                                            _ => gold_amount,
+                                        });
+                                    }
+                                }
+
+                                self.local_cluster = singles;
+                                self.target_gold = max_coord;
+                                self.consensus_coord = max_coord;
                             }
                         }
                     },
@@ -817,6 +939,7 @@ impl Robot {
                             ), vec![message.sender_id]);
                             match message.message_content {
                                 MessageContent::Direction(direction) => {
+                                    self.turn_direction = Some(direction);
                                     self.planned_actions.push(Turn(direction));
                                     self.received_direction = true;
                                     self.turned = true;
@@ -834,6 +957,14 @@ impl Robot {
                             _ => {}
                         }
                     },
+                    MessageType::Done => {
+                        if !self.received_begin {
+                            self.received_begin = true;
+                            self.receiver_ids = self.local_cluster.clone();
+                            self.local_cluster.clear();
+                            self.reset();
+                        }
+                    }
                 }
             },
             None => ()
