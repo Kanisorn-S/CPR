@@ -28,16 +28,23 @@ pub struct World {
     blue_team: RobotManager,
     
     logger_config: LoggerConfig,
+
+    pub total_gold_amount: u8,
 }
 
 // Constructor and Getters
 impl World {
     pub fn new(width: usize, height: usize, p_gold: f64, max_gold: u8, n_robots: u8, manual: bool) -> Self {
         let mut grid: Vec<Vec<Cell>> = Vec::new();
+        let mut total_gold_amount = 0;
         for y in (0..height).rev() {
             let mut row: Vec<Cell> = Vec::new();
             for x in 0..width {
-                row.push(Cell::new((x, y), p_gold, max_gold));
+                let new_cell = Cell::new((x, y), p_gold, max_gold);
+                if new_cell.get_gold_amount().is_some() {
+                    total_gold_amount += new_cell.get_gold_amount().unwrap();
+                }
+                row.push(new_cell);
             }
             grid.push(row);
         }
@@ -58,6 +65,7 @@ impl World {
             red_team: RobotManager::new(Team::Red, red_team, red_message_board),
             blue_team: RobotManager::new(Team::Blue, blue_team, blue_message_board),
             logger_config: LoggerConfig::new(),
+            total_gold_amount,
         }
     }
 

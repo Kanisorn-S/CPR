@@ -146,6 +146,9 @@ pub struct Robot {
     send_getout: bool,
     override_target_gold: bool,
 
+    // React to gold getting nabbed
+    is_second_check: bool,
+
     // Configurations
     logger_config: LoggerConfig,
 }
@@ -231,6 +234,9 @@ impl Robot {
             send_getout: false,
             override_target_gold: false,
 
+            // React to gold getting nabbed
+            is_second_check: false,
+
             // Configuration
             logger_config: LoggerConfig::new(),
         }
@@ -250,6 +256,7 @@ impl Robot {
         self.send_target = false;
         self.clusters = HashMap::new();
         self.not_received_simple = self.receiver_ids.len() as u8;
+        // self.local_cluster = Vec::new();
         println!("Robot {}: New Global contains {} robots", self.team.style(self.id.to_string()).bold(), self.not_received_simple);
 
         // Backup Cluster
@@ -374,6 +381,14 @@ impl Robot {
                     3 => Turn(Direction::Up),
                     _ => Turn(Direction::Down),
                 }
+                // Act randomly
+                // match rand::random_range(1..100) {
+                //     1 => Turn(Direction::Left),
+                //     2 => Turn(Direction::Right),
+                //     3 => Turn(Direction::Down),
+                //     4 => Turn(Direction::Up),
+                //     _ => Action::Move,
+                // }
                 // match self.facing {
                 //     Direction::Left => Turn(Direction::Right),
                 //     Direction::Right => Turn(Direction::Left),
@@ -555,7 +570,7 @@ impl Robot {
                                   .cloned() // since iter() gives &char, we clone to get Vec<char>
                                   .collect();
                                 if !self.send_getout {
-                                    self.send_getout = true;
+                                    // self.send_getout = true;
                                     self.send(Message::new(
                                         self.id,
                                         MessageType::GetOut,
@@ -576,7 +591,7 @@ impl Robot {
                                   .cloned() // since iter() gives &char, we clone to get Vec<char>
                                   .collect();
                                 if !self.send_getout {
-                                    self.send_getout = true;
+                                    // self.send_getout = true;
                                     self.send(Message::new(
                                         self.id,
                                         MessageType::GetOut,
@@ -591,6 +606,22 @@ impl Robot {
 
                 }
 
+                }
+            }
+        }
+
+        // Gold gone before reaching/picking
+        if self.pre_pickup_pair_id.is_some() {
+            if self.knowledge_base.get(&self.target_gold.unwrap()).is_some() {
+                let current_target_cell = self.knowledge_base.get(&self.target_gold.unwrap()).unwrap();
+                if current_target_cell.get_gold_amount().is_none() && self.is_second_check && !self.is_carrying {
+                    // Send DONE and reset
+                    self.scored();
+                    self.reset();
+                    self.planned_actions.clear();
+                    self.is_second_check = false;
+                } else if current_target_cell.get_gold_amount().is_none() && !self.is_second_check {
+                    self.is_second_check = true;
                 }
             }
         }
@@ -772,7 +803,7 @@ impl Robot {
                 self.consensus_coord = self.target_gold;
                 println!("Robot {} has Consensus pair: {:?}", self.team.style(self.id.to_string()), self.consensus_pair);
                 // Self is chosen as designated pair
-                if (self.id == a || self.id == b) && self.planned_actions.is_empty() {
+                if (self.id == a || self.id == b) && self.planned_actions.is_empty() && self.target_gold.is_some() {
                     if a as u32 > b as u32 {
                         self.combined_pair_id = Some(a as u32);
                     } else {
@@ -1085,10 +1116,13 @@ impl Robot {
                         match self.combined_pair_id {
                             Some(combined_pair_id) => {
                                 if message.id > combined_pair_id && self.current_coord == self.target_gold.unwrap() && !self.is_carrying {
+                                    self.received_begin = true;
+                                    self.local_cluster.clear();
                                     self.scored();
                                     self.reset();
                                     self.planned_actions.clear();
                                     self.planned_actions.push(Action::Turn(Direction::Left));
+                                    self.planned_actions.push(Action::Move);
                                     self.planned_actions.push(Action::Move);
                                     self.planned_actions.push(Action::Turn(Direction::Right));
                                     self.planned_actions.push(Action::Move);
