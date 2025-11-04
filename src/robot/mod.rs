@@ -329,7 +329,7 @@ impl Robot {
         if self.is_carrying {
             self.was_carrying = true;
         }
-        if (self.not_received_simple == 0 && !self.send_pair_request) {
+        if self.not_received_simple == 0 && !self.send_pair_request {
             let mut rng = rand::rng();
             let pair_id = self.local_cluster.choose(&mut rng);
             if pair_id.is_some() {
@@ -345,7 +345,7 @@ impl Robot {
             }
         }
         self.paxos_receiver(self.receive());
-        if (manual) {
+        if manual {
             let mut input_string = String::new();
             io::stdin().read_line(&mut input_string).expect("Failed to read line");
             match input_string.trim() {
@@ -594,7 +594,7 @@ impl Robot {
                 }
             }
         }
-        if (self.logger_config.robot_kb) {
+        if self.logger_config.robot_kb {
             match self.team {
                 Team::Red => println!("{}{:?} Robot {} Current KB: {:?}", "|".red(), self.team, self.id.to_string().red(), self.knowledge_base),
                 Team::Blue => println!("{}{:?} Robot {} Current KB: {:?}", "|".blue(), self.team, self.id.to_string().blue(), self.knowledge_base),
@@ -607,28 +607,28 @@ impl Robot {
         observable_cells.push_back(current_coord);
         match self.facing {
             Direction::Left => {
-                if (current_coord.x == 0) {
+                if current_coord.x == 0 {
                     self.observable_cells = observable_cells.clone();
                     return observable_cells;
                 }
                 current_coord.x -= 1
             },
             Direction::Right => {
-                if (current_coord.x == width - 1) {
+                if current_coord.x == width - 1 {
                     self.observable_cells = observable_cells.clone();
                     return observable_cells;
                 }
                 current_coord.x += 1
             },
             Direction::Up => {
-                if (current_coord.y == height - 1) {
+                if current_coord.y == height - 1 {
                     self.observable_cells = observable_cells.clone();
                     return observable_cells;
                 }
                 current_coord.y += 1
             },
             Direction::Down => {
-                if (current_coord.y == 0) {
+                if current_coord.y == 0 {
                     self.observable_cells = observable_cells.clone();
                     return observable_cells;
                 }
@@ -640,12 +640,12 @@ impl Robot {
             let y = current_coord.y;
             match self.facing {
                 Direction::Left | Direction::Right=> {
-                    if (y + i < height) {
+                    if y + i < height {
                         observable_cells.push_back(Coord::new(x, y + i))
                     }
                 },
                 Direction::Up | Direction::Down => {
-                    if (x + i < width) {
+                    if x + i < width {
                         observable_cells.push_back(Coord::new(x + i, y))
                     }
                 }
@@ -653,40 +653,40 @@ impl Robot {
         }
         match self.facing {
             Direction::Left => {
-                if (current_coord.y != 0) {
+                if current_coord.y != 0 {
                     observable_cells.push_back(Coord::new(current_coord.x, current_coord.y - 1));
                 }
-                if (current_coord.x == 0) {
+                if current_coord.x == 0 {
                     self.observable_cells = observable_cells.clone();
                     return observable_cells;
                 }
                 current_coord.x -= 1
             },
             Direction::Right => {
-                if (current_coord.y != 0) {
+                if current_coord.y != 0 {
                     observable_cells.push_back(Coord::new(current_coord.x, current_coord.y - 1));
                 }
-                if (current_coord.x == width - 1) {
+                if current_coord.x == width - 1 {
                     self.observable_cells = observable_cells.clone();
                     return observable_cells;
                 }
                 current_coord.x += 1
             },
             Direction::Up => {
-                if (current_coord.x != 0) {
+                if current_coord.x != 0 {
                     observable_cells.push_back(Coord::new(current_coord.x - 1, current_coord.y));
                 }
-                if (current_coord.y == height - 1) {
+                if current_coord.y == height - 1 {
                     self.observable_cells = observable_cells.clone();
                     return observable_cells;
                 }
                 current_coord.y += 1
             },
             Direction::Down => {
-                if (current_coord.x != 0) {
+                if current_coord.x != 0 {
                     observable_cells.push_back(Coord::new(current_coord.x - 1, current_coord.y));
                 }
-                if (current_coord.y == 0) {
+                if current_coord.y == 0 {
                     self.observable_cells = observable_cells.clone();
                     return observable_cells;
                 }
@@ -698,11 +698,11 @@ impl Robot {
             let y = current_coord.y;
             match self.facing {
                 Direction::Left | Direction::Right=> {
-                    if (y >= i) {
+                    if y >= i {
                         observable_cells.push_back(Coord::new(x, y - i))}
                     }
                 Direction::Up | Direction::Down => {
-                    if (x >= i) {
+                    if x >= i {
                         observable_cells.push_back(Coord::new(x - i, y))
                     }
                 }
@@ -713,12 +713,12 @@ impl Robot {
             let y = current_coord.y;
             match self.facing {
                 Direction::Left | Direction::Right => {
-                    if (y + i < height) {
+                    if y + i < height {
                         observable_cells.push_back(Coord::new(x, y + i))
                     }
                 },
             Direction::Up | Direction::Down => {
-                if (x + i < width) {
+                if x + i < width {
                     observable_cells.push_back(Coord::new(x + i, y))}
                 }
             }
@@ -747,7 +747,7 @@ impl Robot {
         if let Some(message_box) = message_board_guard.get_message_board().get_mut(&self.id) {
             message_to_return = message_box.retrieve_messages()
         }
-        if (self.logger_config.robot_message) {
+        if self.logger_config.robot_message {
             match message_to_return {
                 Some(message) => {
                     println!("Robot {} received {:?}", self.team.style(self.id.to_string()), message);
@@ -798,7 +798,7 @@ impl Robot {
                     MessageType::PrepareRequest => {
                         match self.promised_message {
                             Some(promised_message) => {
-                                if (promised_message.id < message.id) {
+                                if promised_message.id < message.id {
                                     println!("Robot {} Piggybacked", self.team.style(self.id.to_string()));
                                     self.promised_message = Some(Message::new(
                                         promised_message.sender_id,
@@ -841,7 +841,7 @@ impl Robot {
                             Some(promised_message) => {
                                 println!("Promised Message: {:?}", promised_message);
                                 println!("Received Message: {:?}", message);
-                                if (promised_message.id <= message.id && !self.accepted) {
+                                if promised_message.id <= message.id && !self.accepted {
                                     self.accepted = true;
                                     // self.set_consensus(message.message_content);
                                     self.promised_message = Some(message);
@@ -867,8 +867,8 @@ impl Robot {
                     },
                     MessageType::PrepareResponse => {
                         self.promise_count += 1;
-                        if (message.id == self.message_to_send.unwrap().id && !self.piggybacked) {
-                            if (self.promise_count > self.majority && !self.reached_majority) {
+                        if message.id == self.message_to_send.unwrap().id && !self.piggybacked {
+                            if self.promise_count > self.majority && !self.reached_majority {
                                 self.reached_majority = true;
                                 println!("Robot {} has received majority promises", self.team.style(self.id.to_string()));
                                 let message_to_send = self.message_to_send.unwrap();
@@ -883,7 +883,7 @@ impl Robot {
                         } else {
                             self.piggybacked = true;
                             // Update highset piggyback ID
-                            if (message.id > self.max_piggyback_id_seen) {
+                            if message.id > self.max_piggyback_id_seen {
                                 self.max_piggyback_id_seen = message.id;
                                 let message_to_send = self.message_to_send.unwrap();
                                 let new_message_to_send = Message::new(
@@ -895,7 +895,7 @@ impl Robot {
                                 self.message_to_send = Some(new_message_to_send);
                             }
                             // Check majority
-                            if (self.promise_count > self.majority && !self.reached_majority) {
+                            if self.promise_count > self.majority && !self.reached_majority {
                                 self.reached_majority = true;
                                 println!("Robot {} has received majority promises", self.team.style(self.id.to_string()));
                                 self.send(self.message_to_send.unwrap(), self.local_cluster.clone());
@@ -904,7 +904,7 @@ impl Robot {
                     },
                     MessageType::Accepted => {
                         self.accept_count += 1;
-                        if (self.accept_count > self.majority) {
+                        if self.accept_count > self.majority {
                             self.set_consensus(message.message_content);
                             self.promised_message = Some(message);
                             self.send(Message::new(
@@ -1129,7 +1129,7 @@ impl Robot {
             facing_y = Direction::Down;
         }
 
-        if (self.facing == facing_x) {
+        if self.facing == facing_x {
             if !at_x {
                 self.plan_move(travel_x.abs());
             }
@@ -1137,7 +1137,7 @@ impl Robot {
                 self.planned_actions.push(Action::Turn(facing_y));
                 self.plan_move(travel_y.abs());
             }
-        } else if (self.facing == facing_y) {
+        } else if self.facing == facing_y {
             if !at_y {
                 self.plan_move(travel_y.abs());
             }

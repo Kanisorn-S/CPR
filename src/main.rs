@@ -28,11 +28,11 @@ fn main() {
     println!("{}", "-".repeat(100).bold());
     for i in 0..turns {
         println!("{} {}", "TURN".bold(), i.to_string().bold());
-        if (current_grid) {
+        if current_grid {
             println!("{}", "Current Grid".bold());
             world.print_grid();
         }
-        if (robot_status) {
+        if robot_status {
             println!("\n{}", "Current Robot Status".bold());
             world.print_robots();
         }
