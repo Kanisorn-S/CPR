@@ -101,6 +101,7 @@ pub struct Robot {
     // Local Cluster Identification
     receiver_ids: Vec<char>,
     target_gold: Option<Coord>,
+    old_target_gold: Option<Coord>,
     target_gold_amount: u8,
     max_gold_seen: u8,
     send_target: bool,
@@ -149,6 +150,8 @@ pub struct Robot {
     // React to gold getting nabbed
     is_second_check: bool,
 
+    carrying_with_wrong_pair: bool,
+
     // Configurations
     logger_config: LoggerConfig,
 }
@@ -189,6 +192,7 @@ impl Robot {
             // Local Cluster Identification
             receiver_ids: make_vec(n_robots, id, team),
             target_gold: None,
+            old_target_gold: None,
             target_gold_amount: 0,
             max_gold_seen: 0,
             send_target: false,
@@ -237,6 +241,8 @@ impl Robot {
             // React to gold getting nabbed
             is_second_check: false,
 
+            carrying_with_wrong_pair: false,
+
             // Configuration
             logger_config: LoggerConfig::new(),
         }
@@ -251,6 +257,7 @@ impl Robot {
 
         // Local Cluster Identification
         self.target_gold = None;
+        self.old_target_gold = None;
         self.target_gold_amount = 0;
         self.max_gold_seen = 0;
         self.send_target = false;
@@ -289,6 +296,8 @@ impl Robot {
         self.combined_pair_id = None;
         self.send_getout = false;
         self.override_target_gold = false;
+
+        self.carrying_with_wrong_pair = false;
 
         println!("{}", "RESET".bold());
     }
@@ -371,8 +380,13 @@ impl Robot {
             if !self.is_carrying() && self.pre_pickup_pair_id.is_some() && self.turned {
                 Action::PickUp
             } else if self.is_carrying() {
-                self.plan_actions_to_move_to(self.deposit_box_coord);
-                Action::Turn(Direction::Up)
+                if self.pre_pickup_pair_id.unwrap() == self.pair_id.unwrap() {
+                    self.plan_actions_to_move_to(self.deposit_box_coord);
+                    Action::Turn(Direction::Up)
+                } else {
+                    self.carrying_with_wrong_pair = true;
+                    Action::PickUp
+                }
             } else {
                 // Turn randomly
                 match rand::random_range(1..5) {
@@ -508,15 +522,30 @@ impl Robot {
             let observed_cell = grid.get_cell(*observable_cell).unwrap();
             if observed_cell.get_gold_amount().is_some() && !self.send_target {
                 if observed_cell.get_gold_amount().unwrap() > self.max_gold_seen && !self.override_target_gold {
-                    self.max_gold_seen = observed_cell.get_gold_amount().unwrap();
-                    self.target_gold = Some(observed_cell.coord);
-                    self.target_gold_amount = observed_cell.get_gold_amount().unwrap();
-                    self.message_to_send = Some(Message::new(
-                        self.id,
-                        MessageType::Simple,
-                        self.id as u32,
-                        MessageContent::Coord(Some(observed_cell.coord), Some(observed_cell.get_gold_amount().unwrap())),
-                    ));
+                    if self.old_target_gold.is_some() {
+                        if observed_cell.coord != self.old_target_gold.unwrap() {
+                            self.max_gold_seen = observed_cell.get_gold_amount().unwrap();
+                            self.target_gold = Some(observed_cell.coord);
+                            self.target_gold_amount = observed_cell.get_gold_amount().unwrap();
+                            self.message_to_send = Some(Message::new(
+                                self.id,
+                                MessageType::Simple,
+                                self.id as u32,
+                                MessageContent::Coord(Some(observed_cell.coord), Some(observed_cell.get_gold_amount().unwrap())),
+                            ));
+                        }
+                    } else {
+                        self.max_gold_seen = observed_cell.get_gold_amount().unwrap();
+                        self.target_gold = Some(observed_cell.coord);
+                        self.target_gold_amount = observed_cell.get_gold_amount().unwrap();
+                        self.message_to_send = Some(Message::new(
+                            self.id,
+                            MessageType::Simple,
+                            self.id as u32,
+                            MessageContent::Coord(Some(observed_cell.coord), Some(observed_cell.get_gold_amount().unwrap())),
+                        ));
+
+                    }
                 }
             }
             // self.knowledge_base.entry(observed_cell.coord).or_insert(observed_cell);
@@ -575,7 +604,7 @@ impl Robot {
                                         self.id,
                                         MessageType::GetOut,
                                         self.combined_pair_id.unwrap(),
-                                        MessageContent::Direction(Direction::Up),
+                                        MessageContent::Coord(self.target_gold, Some(0u8)),
                                     ), filtered);
 
                                 }
@@ -596,7 +625,7 @@ impl Robot {
                                         self.id,
                                         MessageType::GetOut,
                                         self.combined_pair_id.unwrap(),
-                                        MessageContent::Direction(Direction::Up),
+                                        MessageContent::Coord(self.target_gold, Some(0u8)),
                                     ), filtered);
                                 }
 
@@ -1075,7 +1104,7 @@ impl Robot {
                         }
                     },
                     MessageType::Request => {
-                        if self.target_gold.is_some() {
+                        if self.target_gold.is_some() && !self.turned {
                             if self.id < message.sender_id || self.current_coord != self.target_gold.unwrap() {
                                 self.send(Message::new(
                                     self.id,
@@ -1096,12 +1125,17 @@ impl Robot {
                         }
                     },
                     MessageType::Ack => {
-                        match message.message_content {
-                            MessageContent::Direction(direction) => {
-                                self.planned_actions.push(Turn(direction));
-                                self.turned = true;
-                            },
-                            _ => {}
+                        if self.target_gold.is_some() {
+                            if self.current_coord == self.target_gold.unwrap() {
+                                match message.message_content {
+                                    MessageContent::Direction(direction) => {
+                                        self.planned_actions.push(Turn(direction));
+                                        self.turned = true;
+                                    },
+                                    _ => {}
+                                }
+                            }
+
                         }
                     },
                     MessageType::Done => {
@@ -1115,17 +1149,25 @@ impl Robot {
                     MessageType::GetOut => {
                         match self.combined_pair_id {
                             Some(combined_pair_id) => {
-                                if message.id > combined_pair_id && self.current_coord == self.target_gold.unwrap() && !self.is_carrying {
-                                    self.received_begin = true;
-                                    self.local_cluster.clear();
-                                    self.scored();
-                                    self.reset();
-                                    self.planned_actions.clear();
-                                    self.planned_actions.push(Action::Turn(Direction::Left));
-                                    self.planned_actions.push(Action::Move);
-                                    self.planned_actions.push(Action::Move);
-                                    self.planned_actions.push(Action::Turn(Direction::Right));
-                                    self.planned_actions.push(Action::Move);
+                                match message.message_content {
+                                    MessageContent::Coord(Some(get_out_coord), _) => {
+                                        if self.current_coord == get_out_coord && message.id > combined_pair_id && self.current_coord == self.target_gold.unwrap() && (!self.is_carrying || self.carrying_with_wrong_pair) {
+                                            self.old_target_gold = self.target_gold;
+                                            self.received_begin = true;
+                                            self.receiver_ids = self.local_cluster.clone();
+                                            self.local_cluster.clear();
+                                            self.scored();
+                                            self.reset();
+                                            self.planned_actions.clear();
+                                            self.planned_actions.push(Action::Turn(Direction::Left));
+                                            self.planned_actions.push(Action::Move);
+                                            self.planned_actions.push(Action::Turn(Direction::Up));
+                                            self.planned_actions.push(Action::Move);
+                                            self.planned_actions.push(Action::Turn(Direction::Right));
+                                            self.planned_actions.push(Action::Move);
+                                        }
+                                    },
+                                    _ => {}
                                 }
                             },
                             None => {}
