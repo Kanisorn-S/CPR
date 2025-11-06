@@ -399,7 +399,15 @@ impl Robot {
         } else {
             // Spam PICKUP
             if !self.is_carrying() && self.pre_pickup_pair_id.is_some() && self.turned {
-                Action::PickUp
+                if self.current_coord == self.target_gold.unwrap() {
+                    Action::PickUp
+                } else {
+                    self.received_begin = true;
+                    self.receiver_ids = self.local_cluster.clone();
+                    self.local_cluster.clear();
+                    self.reset();
+                    Action::Turn(Direction::Right)
+                }
             } else if self.is_carrying() {
                 if self.pre_pickup_pair_id.unwrap() == self.pair_id.unwrap() {
                     self.current_state = RobotState::MovingToDropBox;
