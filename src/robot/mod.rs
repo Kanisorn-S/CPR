@@ -318,6 +318,7 @@ impl Robot {
 
         // State Tracking
         self.current_state = RobotState::ClusterFinding;
+        self.turn_direction = None;
 
         println!("{}", "RESET".bold());
     }
@@ -1139,6 +1140,7 @@ impl Robot {
                                     self.local_cluster = singles;
                                     self.target_gold = max_coord;
                                     self.consensus_coord = max_coord;
+                                    self.current_state = RobotState::Paxos;
                                 }
                             }
                     },
