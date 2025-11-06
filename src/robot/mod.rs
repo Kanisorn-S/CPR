@@ -577,8 +577,8 @@ impl Robot {
                             self.id,
                             MessageType::Request,
                             self.id as u32,
-                            // MessageContent::TurnReq(propose_direction, self.target_gold.unwrap()),
-                            MessageContent::Direction(propose_direction),
+                            MessageContent::TurnReq(propose_direction, self.target_gold.unwrap()),
+                            // MessageContent::Direction(propose_direction),
                         ), vec![self.pre_pickup_pair_id.unwrap()]);
                         self.sent_direction_request = true;
 
@@ -1106,6 +1106,9 @@ impl Robot {
                     },
                     MessageType::Request => {
                         if self.target_gold.is_some() && !self.turned {
+                            match message.message_content {
+                                MessageContent::TurnReq(direction, coord) => {
+                                    if coord == self.target_gold.unwrap() {
                                         if self.id < message.sender_id || self.current_coord != self.target_gold.unwrap() {
                                             self.send(Message::new(
                                                 self.id,
@@ -1113,28 +1116,29 @@ impl Robot {
                                                 self.id as u32,
                                                 message.message_content,
                                             ), vec![message.sender_id]);
-                                            match message.message_content {
-                                                MessageContent::Direction(direction) => {
-                                                    self.turn_direction = Some(direction);
-                                                    self.planned_actions.push(Turn(direction));
-                                                    self.received_direction = true;
-                                                    self.turned = true;
-                                                },
-                                                _ => {}
-                                            }
+                                            self.turn_direction = Some(direction);
+                                            self.planned_actions.push(Turn(direction));
+                                            self.received_direction = true;
+                                            self.turned = true;
+                                        }
+                                    }
+                                },
+                                _ => {}
                             }
                         }
                     },
                     MessageType::Ack => {
                         if self.target_gold.is_some() {
+                            match message.message_content {
+                                MessageContent::TurnReq(direction, coord) => {
+                                    if coord == self.target_gold.unwrap() {
                                         if self.current_coord == self.target_gold.unwrap() {
-                                            match message.message_content {
-                                                MessageContent::Direction(direction) => {
-                                                    self.planned_actions.push(Turn(direction));
-                                                    self.turned = true;
-                                                },
-                                                _ => {}
-                                            }
+                                            self.planned_actions.push(Turn(direction));
+                                            self.turned = true;
+                                        }
+                                    }
+                                },
+                                _ => {}
                             }
                         }
                     },
