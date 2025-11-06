@@ -78,7 +78,7 @@ impl Cell {
 impl Cell {
     pub fn get_gold_amount(&self) -> Option<u8> {
         match self.content {
-            Some(CellContent::GoldBars(n)) if n > 0 => Some(n),
+            Some(CellContent::GoldBars(n)) => Some(n),
             _ => None,
         }
     }

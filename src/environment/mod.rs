@@ -49,7 +49,8 @@ impl World {
             grid.push(row);
         }
         let mut grid = Grid::new(grid, width, height);
-        let (red_deposit_box, blue_deposit_box) = Self::spawn_deposit_box(width, height, &mut grid);
+        let (red_deposit_box, blue_deposit_box, gold_to_be_removed) = Self::spawn_deposit_box(width, height, &mut grid);
+        total_gold_amount -= gold_to_be_removed;
         let (blue_team, blue_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Blue, blue_deposit_box);
         let (red_team, red_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Red, red_deposit_box);
         Self {
@@ -109,7 +110,8 @@ impl World {
 
 // Initialization functions
 impl World {
-    fn spawn_deposit_box(width: usize, height: usize, grid: &mut Grid) -> (Coord, Coord) {
+    fn spawn_deposit_box(width: usize, height: usize, grid: &mut Grid) -> (Coord, Coord, u8) {
+        let mut gold_to_be_remove = 0;
         let red_deposit_box = Coord::random(0..width, 0..height);
         let mut blue_deposit_box: Coord;
         loop {
@@ -118,9 +120,15 @@ impl World {
                 break;
             }
         }
+        if grid.get_cell(red_deposit_box).unwrap().get_gold_amount().is_some() {
+            gold_to_be_remove += grid.get_cell(red_deposit_box).unwrap().get_gold_amount().unwrap();
+        }
+        if grid.get_cell(blue_deposit_box).unwrap().get_gold_amount().is_some() {
+            gold_to_be_remove += grid.get_cell(blue_deposit_box).unwrap().get_gold_amount().unwrap();
+        }
         grid.get_mut_cell(red_deposit_box).unwrap().set_deposit_box(Team::Red);
         grid.get_mut_cell(blue_deposit_box).unwrap().set_deposit_box(Team::Blue);
-        (red_deposit_box, blue_deposit_box)
+        (red_deposit_box, blue_deposit_box, gold_to_be_remove)
     }
 
     fn spawn_robots(width: usize, height: usize, grid: &mut Grid, n_robots: u8, team: Team, deposit_box: Coord) -> (HashMap<char, Robot>, Arc<Mutex<MessageBoard>>) {

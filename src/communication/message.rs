@@ -25,6 +25,7 @@ pub enum MessageContent {
   Coord(Option<Coord>, Option<u8>),
   Pair(char, char),
   Direction(Direction),
+  TurnReq(Direction, Coord),
 }
 
 #[derive(PartialEq, Hash, Eq, Clone, Copy)]
@@ -138,6 +139,9 @@ impl Debug for MessageContent {
       },
       MessageContent::Direction(direction) => {
         write!(f, "{:?}", direction)
+      },
+      MessageContent::TurnReq(direction, coord) => {
+        write!(f, "{:?} has {:?} coords", direction, coord)
       }
     }
   }

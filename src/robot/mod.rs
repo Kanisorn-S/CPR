@@ -577,6 +577,7 @@ impl Robot {
                             self.id,
                             MessageType::Request,
                             self.id as u32,
+                            // MessageContent::TurnReq(propose_direction, self.target_gold.unwrap()),
                             MessageContent::Direction(propose_direction),
                         ), vec![self.pre_pickup_pair_id.unwrap()]);
                         self.sent_direction_request = true;
@@ -1105,37 +1106,36 @@ impl Robot {
                     },
                     MessageType::Request => {
                         if self.target_gold.is_some() && !self.turned {
-                            if self.id < message.sender_id || self.current_coord != self.target_gold.unwrap() {
-                                self.send(Message::new(
-                                    self.id,
-                                    MessageType::Ack,
-                                    self.id as u32,
-                                    message.message_content,
-                                ), vec![message.sender_id]);
-                                match message.message_content {
-                                    MessageContent::Direction(direction) => {
-                                        self.turn_direction = Some(direction);
-                                        self.planned_actions.push(Turn(direction));
-                                        self.received_direction = true;
-                                        self.turned = true;
-                                    },
-                                    _ => {}
-                                }
+                                        if self.id < message.sender_id || self.current_coord != self.target_gold.unwrap() {
+                                            self.send(Message::new(
+                                                self.id,
+                                                MessageType::Ack,
+                                                self.id as u32,
+                                                message.message_content,
+                                            ), vec![message.sender_id]);
+                                            match message.message_content {
+                                                MessageContent::Direction(direction) => {
+                                                    self.turn_direction = Some(direction);
+                                                    self.planned_actions.push(Turn(direction));
+                                                    self.received_direction = true;
+                                                    self.turned = true;
+                                                },
+                                                _ => {}
+                                            }
                             }
                         }
                     },
                     MessageType::Ack => {
                         if self.target_gold.is_some() {
-                            if self.current_coord == self.target_gold.unwrap() {
-                                match message.message_content {
-                                    MessageContent::Direction(direction) => {
-                                        self.planned_actions.push(Turn(direction));
-                                        self.turned = true;
-                                    },
-                                    _ => {}
-                                }
+                                        if self.current_coord == self.target_gold.unwrap() {
+                                            match message.message_content {
+                                                MessageContent::Direction(direction) => {
+                                                    self.planned_actions.push(Turn(direction));
+                                                    self.turned = true;
+                                                },
+                                                _ => {}
+                                            }
                             }
-
                         }
                     },
                     MessageType::Done => {
