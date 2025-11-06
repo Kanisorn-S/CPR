@@ -16,6 +16,16 @@ use crate::config::Config;
 use rand::seq::IndexedRandom;
 use crate::robot::Action::Turn;
 
+#[derive(PartialEq)]
+pub enum RobotState {
+    ClusterFinding,
+    Paxos,
+    WaitingForTaskCompletion,
+    MovingToTarget,
+    AtTarget,
+    MovingToDropBox,
+}
+
 #[derive(Copy, Clone)]
 pub enum Team {
     Red,
@@ -152,6 +162,9 @@ pub struct Robot {
 
     carrying_with_wrong_pair: bool,
 
+    // State Tracking
+    current_state: RobotState,
+
     // Configurations
     logger_config: LoggerConfig,
 }
@@ -243,6 +256,9 @@ impl Robot {
 
             carrying_with_wrong_pair: false,
 
+            // State Tracking
+            current_state: RobotState::ClusterFinding,
+
             // Configuration
             logger_config: LoggerConfig::new(),
         }
@@ -280,7 +296,8 @@ impl Robot {
         self.piggybacked = false;
         self.reached_majority = false;
         self.accept_count = 0;
-        self.majority = (self.local_cluster.len() / 2) as u8;
+        // self.majority = (self.local_cluster.len() / 2) as u8;
+        self.majority = (self.not_received_simple / 2) as u8;
         self.increment = self.id as u32;
         self.send_pair_request = false;
         self.consensus_pair = None;
@@ -298,6 +315,9 @@ impl Robot {
         self.override_target_gold = false;
 
         self.carrying_with_wrong_pair = false;
+
+        // State Tracking
+        self.current_state = RobotState::ClusterFinding;
 
         println!("{}", "RESET".bold());
     }
@@ -381,6 +401,7 @@ impl Robot {
                 Action::PickUp
             } else if self.is_carrying() {
                 if self.pre_pickup_pair_id.unwrap() == self.pair_id.unwrap() {
+                    self.current_state = RobotState::MovingToDropBox;
                     self.plan_actions_to_move_to(self.deposit_box_coord);
                     Action::Turn(Direction::Up)
                 } else {
@@ -396,7 +417,7 @@ impl Robot {
                     _ => Turn(Direction::Down),
                 }
                 // Act randomly
-                // match rand::random_range(1..100) {
+                // match rand::random_range(1..6) {
                 //     1 => Turn(Direction::Left),
                 //     2 => Turn(Direction::Right),
                 //     3 => Turn(Direction::Down),
@@ -563,6 +584,7 @@ impl Robot {
         if self.consensus_coord.is_some() {
             // Reached target gold coord
             if self.current_coord == self.target_gold.unwrap() {
+                self.current_state = RobotState::AtTarget;
                 if !self.received_direction && !self.sent_direction_request {
                     if self.pre_pickup_pair_id.is_some() {
                         let propose_direction;
@@ -857,252 +879,268 @@ impl Robot {
             Some(message) => {
                 match message.msg_type {
                     MessageType::PrepareRequest => {
-                        match self.promised_message {
-                            Some(promised_message) => {
-                                if promised_message.id < message.id {
-                                    println!("Robot {} Piggybacked", self.team.style(self.id.to_string()));
-                                    self.promised_message = Some(Message::new(
-                                        promised_message.sender_id,
-                                        promised_message.msg_type,
-                                        message.id,
-                                        promised_message.message_content,
-                                    ));
-                                    println!("{:?}", self.promised_message);
-                                    let piggyback_msg = Message::new(
+                        if self.current_state == RobotState::Paxos {
+                            match self.promised_message {
+                                Some(promised_message) => {
+                                    if promised_message.id < message.id {
+                                        println!("Robot {} Piggybacked", self.team.style(self.id.to_string()));
+                                        self.promised_message = Some(Message::new(
+                                            promised_message.sender_id,
+                                            promised_message.msg_type,
+                                            message.id,
+                                            promised_message.message_content,
+                                        ));
+                                        println!("{:?}", self.promised_message);
+                                        let piggyback_msg = Message::new(
+                                            self.id,
+                                            MessageType::PrepareResponse,
+                                            promised_message.id,
+                                            promised_message.message_content,
+                                        );
+                                        self.send(piggyback_msg, vec![message.sender_id]);
+                                    } else {
+                                        // let nack_msg = Message::new(
+                                        //     self.id,
+                                        //     MessageType::Nack,
+                                        //     promised_message.id,
+                                        //     promised_message.coord,
+                                        // );
+                                        // self.send(nack_msg, vec![message.sender_id]);
+                                    }
+                                },
+                                None => {
+                                    self.promised_message = Some(message);
+                                    let promised = Message::new(
                                         self.id,
                                         MessageType::PrepareResponse,
-                                        promised_message.id,
-                                        promised_message.message_content,
+                                        message.id,
+                                        message.message_content,
                                     );
-                                    self.send(piggyback_msg, vec![message.sender_id]);
-                                } else {
-                                    // let nack_msg = Message::new(
-                                    //     self.id,
-                                    //     MessageType::Nack,
-                                    //     promised_message.id,
-                                    //     promised_message.coord,
-                                    // );
-                                    // self.send(nack_msg, vec![message.sender_id]);
+                                    self.send(promised, vec![message.sender_id]);
                                 }
-                            },
-                            None => {
-                                self.promised_message = Some(message);
-                                let promised = Message::new(
-                                    self.id,
-                                    MessageType::PrepareResponse,
-                                    message.id,
-                                    message.message_content,
-                                );
-                                self.send(promised, vec![message.sender_id]);
                             }
                         }
                     },
                     MessageType::AcceptRequest => {
-                        match self.promised_message {
-                            Some(promised_message) => {
-                                println!("Promised Message: {:?}", promised_message);
-                                println!("Received Message: {:?}", message);
-                                if promised_message.id <= message.id && !self.accepted {
-                                    self.accepted = true;
-                                    // self.set_consensus(message.message_content);
-                                    self.promised_message = Some(message);
-                                    let accepted_msg = Message::new(
-                                        self.id,
-                                        MessageType::Accepted,
-                                        message.id,
-                                        message.message_content,
-                                    );
-                                    self.send(accepted_msg, vec![message.sender_id]);
-                                } else {
-                                    // let nack_msg = Message::new(
-                                    //     self.id,
-                                    //     MessageType::Nack,
-                                    //     promised_message.id,
-                                    //     promised_message.coord,
-                                    // );
-                                    // self.send(nack_msg, vec![message.sender_id]);
-                                }
-                            },
-                            None => {}
+                        if self.current_state == RobotState::Paxos {
+                            match self.promised_message {
+                                Some(promised_message) => {
+                                    println!("Promised Message: {:?}", promised_message);
+                                    println!("Received Message: {:?}", message);
+                                    if promised_message.id <= message.id && !self.accepted {
+                                        self.accepted = true;
+                                        // self.set_consensus(message.message_content);
+                                        self.promised_message = Some(message);
+                                        let accepted_msg = Message::new(
+                                            self.id,
+                                            MessageType::Accepted,
+                                            message.id,
+                                            message.message_content,
+                                        );
+                                        self.send(accepted_msg, vec![message.sender_id]);
+                                    } else {
+                                        // let nack_msg = Message::new(
+                                        //     self.id,
+                                        //     MessageType::Nack,
+                                        //     promised_message.id,
+                                        //     promised_message.coord,
+                                        // );
+                                        // self.send(nack_msg, vec![message.sender_id]);
+                                    }
+                                },
+                                None => {}
+                            }
                         }
                     },
                     MessageType::PrepareResponse => {
-                        self.promise_count += 1;
-                        if message.id == self.message_to_send.unwrap().id && !self.piggybacked {
-                            if self.promise_count > self.majority && !self.reached_majority {
-                                self.reached_majority = true;
-                                println!("Robot {} has received majority promises", self.team.style(self.id.to_string()));
-                                let message_to_send = self.message_to_send.unwrap();
-                                let accept_request_msg = Message::new(
-                                    self.id,
-                                    MessageType::AcceptRequest,
-                                    message_to_send.id,
-                                    message_to_send.message_content,
-                                );
-                                self.send(accept_request_msg, self.local_cluster.clone());
-                            }
-                        } else {
-                            self.piggybacked = true;
-                            // Update highset piggyback ID
-                            if message.id > self.max_piggyback_id_seen {
-                                self.max_piggyback_id_seen = message.id;
-                                let message_to_send = self.message_to_send.unwrap();
-                                let new_message_to_send = Message::new(
-                                    self.id,
-                                    MessageType::AcceptRequest,
-                                    message_to_send.id,
-                                    message.message_content,
-                                );
-                                self.message_to_send = Some(new_message_to_send);
-                            }
-                            // Check majority
-                            if self.promise_count > self.majority && !self.reached_majority {
-                                self.reached_majority = true;
-                                println!("Robot {} has received majority promises", self.team.style(self.id.to_string()));
-                                self.send(self.message_to_send.unwrap(), self.local_cluster.clone());
+                        if self.current_state == RobotState::Paxos {
+                            self.promise_count += 1;
+                            if message.id == self.message_to_send.unwrap().id && !self.piggybacked {
+                                if self.promise_count > self.majority && !self.reached_majority {
+                                    self.reached_majority = true;
+                                    println!("Robot {} has received majority promises", self.team.style(self.id.to_string()));
+                                    let message_to_send = self.message_to_send.unwrap();
+                                    let accept_request_msg = Message::new(
+                                        self.id,
+                                        MessageType::AcceptRequest,
+                                        message_to_send.id,
+                                        message_to_send.message_content,
+                                    );
+                                    self.send(accept_request_msg, self.local_cluster.clone());
+                                }
+                            } else {
+                                self.piggybacked = true;
+                                // Update highset piggyback ID
+                                if message.id > self.max_piggyback_id_seen {
+                                    self.max_piggyback_id_seen = message.id;
+                                    let message_to_send = self.message_to_send.unwrap();
+                                    let new_message_to_send = Message::new(
+                                        self.id,
+                                        MessageType::AcceptRequest,
+                                        message_to_send.id,
+                                        message.message_content,
+                                    );
+                                    self.message_to_send = Some(new_message_to_send);
+                                }
+                                // Check majority
+                                if self.promise_count > self.majority && !self.reached_majority {
+                                    self.reached_majority = true;
+                                    println!("Robot {} has received majority promises", self.team.style(self.id.to_string()));
+                                    self.send(self.message_to_send.unwrap(), self.local_cluster.clone());
+                                }
                             }
                         }
                     },
                     MessageType::Accepted => {
-                        self.accept_count += 1;
-                        if self.accept_count > self.majority {
-                            self.set_consensus(message.message_content);
-                            self.promised_message = Some(message);
-                            self.send(Message::new(
-                                self.id,
-                                MessageType::Confirm,
-                                self.id as u32,
-                                message.message_content,
-                            ), self.local_cluster.clone());
+                        if self.current_state == RobotState::Paxos {
+                            self.accept_count += 1;
+                            if self.accept_count > self.majority {
+                                self.set_consensus(message.message_content);
+                                self.promised_message = Some(message);
+                                self.send(Message::new(
+                                    self.id,
+                                    MessageType::Confirm,
+                                    self.id as u32,
+                                    message.message_content,
+                                ), self.local_cluster.clone());
+                            }
                         }
                     },
                     MessageType::Confirm => {
-                        self.set_consensus(message.message_content);
+                        if self.current_state == RobotState::Paxos {
+                            self.set_consensus(message.message_content);
+                            self.current_state = RobotState::MovingToTarget;
+                        }
                     }
                     MessageType::Nack => {
-                        self.max_id_seen = message.id;
-                        let Message { message_content, .. } = self.message_to_send.unwrap();
-                        let new_message_to_send = Message::new(
-                            self.id,
-                            MessageType::PrepareRequest,
-                            self.max_id_seen + self.increment,
-                            message_content,
-                        );
-                        self.message_to_send = Some(new_message_to_send);
-                        self.send(new_message_to_send, self.local_cluster.clone());
+                        if self.current_state == RobotState::Paxos {
+                            self.max_id_seen = message.id;
+                            let Message { message_content, .. } = self.message_to_send.unwrap();
+                            let new_message_to_send = Message::new(
+                                self.id,
+                                MessageType::PrepareRequest,
+                                self.max_id_seen + self.increment,
+                                message_content,
+                            );
+                            self.message_to_send = Some(new_message_to_send);
+                            self.send(new_message_to_send, self.local_cluster.clone());
+                        }
                     },
                     MessageType::Simple => {
-                        if !self.received_begin {
-                            self.received_begin = true;
-                            self.receiver_ids = self.local_cluster.clone();
-                            self.local_cluster.clear();
-                            self.reset();
-                        }
-                        if self.not_received_simple > 0 {
-                            self.not_received_simple -= 1;
-                            if self.target_gold.is_some() {
-                                match message.message_content {
-                                    MessageContent::Coord(Some(coord), Some(gold_amount)) => {
-                                        let list = self.clusters.entry((coord, gold_amount)).or_insert(vec![]);
-                                        list.push(message.sender_id);
-                                        if coord == self.target_gold.unwrap() {
-                                            self.local_cluster.push(message.sender_id);
-                                        }
-                                        if gold_amount > self.max_gold_receive {
-                                            self.backup_cluster.clear();
-                                            self.max_gold_receive = gold_amount;
-                                            self.max_gold_receive_coord = Some(coord);
-                                        }
-                                        match self.max_gold_receive_coord {
-                                            Some(max_gold_coord) => {
-                                                if coord == max_gold_coord {
-                                                    self.backup_cluster.push(message.sender_id);
-                                                }
-                                            },
-                                            _ => {}
-                                        }
-                                    },
-                                    _ => {}
-                                }
-                            } else {
-                                match message.message_content {
-                                    MessageContent::Coord(Some(coord), Some(gold_amount)) => {
-                                        self.override_target_gold = true;
-                                        self.target_gold = Some(coord);
-                                        self.max_gold_seen = gold_amount;
-                                        self.target_gold_amount = gold_amount;
-                                        self.message_to_send = Some(Message::new(
-                                            self.id,
-                                            MessageType::Simple,
-                                            self.id as u32,
-                                            MessageContent::Coord(Some(coord), Some(gold_amount)),
-                                        ));
-                                        let list = self.clusters.entry((coord, gold_amount)).or_insert(vec![]);
-                                        list.push(message.sender_id);
-                                        if coord == self.target_gold.unwrap() {
-                                            self.local_cluster.push(message.sender_id);
-                                        }
-                                        if gold_amount > self.max_gold_receive {
-                                            self.backup_cluster.clear();
-                                            self.max_gold_receive = gold_amount;
-                                            self.max_gold_receive_coord = Some(coord);
-                                        }
-                                        match self.max_gold_receive_coord {
-                                            Some(max_gold_coord) => {
-                                                if coord == max_gold_coord {
-                                                    self.backup_cluster.push(message.sender_id);
-                                                }
-                                            },
-                                            _ => {}
-                                        }
-                                    },
-                                    _ => {}
-                                }
+                            if !self.received_begin {
+                                self.received_begin = true;
+                                self.receiver_ids = self.local_cluster.clone();
+                                self.local_cluster.clear();
+                                self.reset();
                             }
-                            if self.not_received_simple == 0 && self.local_cluster.is_empty() {
-                                let mut singles = Vec::new();
-                                let mut max_key: Option<u8> = Some(self.target_gold_amount);
-                                let mut max_coord: Option<Coord> = self.target_gold;
-
-                                for (&(coord, gold_amount), v) in &self.clusters {
-                                    if v.len() == 1 {
-                                        singles.push(v[0]);
-
-                                        // track max key
-                                        match max_key {
-                                            Some(current) => {
-                                                if gold_amount == current {
-                                                    match max_coord {
-                                                        Some(current_coord) => {
-                                                            if coord.priority(current_coord) {
-                                                                max_coord = Some(coord);
-                                                                max_key = Some(current);
-                                                            }
-                                                        },
-                                                        _ => {}
-                                                    }
-                                                } else if gold_amount > current {
-                                                    max_coord = Some(coord);
-                                                    max_key = Some(current);
-                                                }
-                                            },
-                                            _ => {
-                                                max_coord = Some(coord);
-                                                max_key = Some(gold_amount);
+                            if self.not_received_simple > 0 {
+                                self.not_received_simple -= 1;
+                                if self.not_received_simple == 0 {
+                                    self.current_state = RobotState::Paxos;
+                                }
+                                if self.target_gold.is_some() {
+                                    match message.message_content {
+                                        MessageContent::Coord(Some(coord), Some(gold_amount)) => {
+                                            let list = self.clusters.entry((coord, gold_amount)).or_insert(vec![]);
+                                            list.push(message.sender_id);
+                                            if coord == self.target_gold.unwrap() {
+                                                self.local_cluster.push(message.sender_id);
                                             }
-                                        }
-                                        max_key = Some(match max_key {
-                                            Some(current) if current > gold_amount => current,
-                                            _ => gold_amount,
-                                        });
+                                            if gold_amount > self.max_gold_receive {
+                                                self.backup_cluster.clear();
+                                                self.max_gold_receive = gold_amount;
+                                                self.max_gold_receive_coord = Some(coord);
+                                            }
+                                            match self.max_gold_receive_coord {
+                                                Some(max_gold_coord) => {
+                                                    if coord == max_gold_coord {
+                                                        self.backup_cluster.push(message.sender_id);
+                                                    }
+                                                },
+                                                _ => {}
+                                            }
+                                        },
+                                        _ => {}
+                                    }
+                                } else {
+                                    match message.message_content {
+                                        MessageContent::Coord(Some(coord), Some(gold_amount)) => {
+                                            self.override_target_gold = true;
+                                            self.target_gold = Some(coord);
+                                            self.max_gold_seen = gold_amount;
+                                            self.target_gold_amount = gold_amount;
+                                            self.message_to_send = Some(Message::new(
+                                                self.id,
+                                                MessageType::Simple,
+                                                self.id as u32,
+                                                MessageContent::Coord(Some(coord), Some(gold_amount)),
+                                            ));
+                                            let list = self.clusters.entry((coord, gold_amount)).or_insert(vec![]);
+                                            list.push(message.sender_id);
+                                            if coord == self.target_gold.unwrap() {
+                                                self.local_cluster.push(message.sender_id);
+                                            }
+                                            if gold_amount > self.max_gold_receive {
+                                                self.backup_cluster.clear();
+                                                self.max_gold_receive = gold_amount;
+                                                self.max_gold_receive_coord = Some(coord);
+                                            }
+                                            match self.max_gold_receive_coord {
+                                                Some(max_gold_coord) => {
+                                                    if coord == max_gold_coord {
+                                                        self.backup_cluster.push(message.sender_id);
+                                                    }
+                                                },
+                                                _ => {}
+                                            }
+                                        },
+                                        _ => {}
                                     }
                                 }
+                                if self.not_received_simple == 0 && self.local_cluster.is_empty() {
+                                    let mut singles = Vec::new();
+                                    let mut max_key: Option<u8> = Some(self.target_gold_amount);
+                                    let mut max_coord: Option<Coord> = self.target_gold;
 
-                                self.local_cluster = singles;
-                                self.target_gold = max_coord;
-                                self.consensus_coord = max_coord;
+                                    for (&(coord, gold_amount), v) in &self.clusters {
+                                        if v.len() == 1 {
+                                            singles.push(v[0]);
+
+                                            // track max key
+                                            match max_key {
+                                                Some(current) => {
+                                                    if gold_amount == current {
+                                                        match max_coord {
+                                                            Some(current_coord) => {
+                                                                if coord.priority(current_coord) {
+                                                                    max_coord = Some(coord);
+                                                                    max_key = Some(current);
+                                                                }
+                                                            },
+                                                            _ => {}
+                                                        }
+                                                    } else if gold_amount > current {
+                                                        max_coord = Some(coord);
+                                                        max_key = Some(current);
+                                                    }
+                                                },
+                                                _ => {
+                                                    max_coord = Some(coord);
+                                                    max_key = Some(gold_amount);
+                                                }
+                                            }
+                                            max_key = Some(match max_key {
+                                                Some(current) if current > gold_amount => current,
+                                                _ => gold_amount,
+                                            });
+                                        }
+                                    }
+
+                                    self.local_cluster = singles;
+                                    self.target_gold = max_coord;
+                                    self.consensus_coord = max_coord;
+                                }
                             }
-                        }
                     },
                     MessageType::Request => {
                         if self.target_gold.is_some() && !self.turned {
@@ -1163,12 +1201,13 @@ impl Robot {
                                             self.scored();
                                             self.reset();
                                             self.planned_actions.clear();
-                                            self.planned_actions.push(Action::Turn(Direction::Left));
-                                            self.planned_actions.push(Action::Move);
-                                            self.planned_actions.push(Action::Turn(Direction::Up));
-                                            self.planned_actions.push(Action::Move);
-                                            self.planned_actions.push(Action::Turn(Direction::Right));
-                                            self.planned_actions.push(Action::Move);
+                                            self.plan_actions_to_move_to(self.deposit_box_coord);
+                                            // self.planned_actions.push(Action::Turn(Direction::Left));
+                                            // self.planned_actions.push(Action::Move);
+                                            // self.planned_actions.push(Action::Turn(Direction::Up));
+                                            // self.planned_actions.push(Action::Move);
+                                            // self.planned_actions.push(Action::Turn(Direction::Right));
+                                            // self.planned_actions.push(Action::Move);
                                         }
                                     },
                                     _ => {}
