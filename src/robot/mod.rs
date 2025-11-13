@@ -16,7 +16,7 @@ use crate::config::Config;
 use rand::seq::IndexedRandom;
 use crate::robot::Action::Turn;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum RobotState {
     ClusterFinding,
     Paxos,
@@ -677,7 +677,10 @@ impl Robot {
                 let current_target_cell = self.knowledge_base.get(&self.target_gold.unwrap()).unwrap();
                 if current_target_cell.get_gold_amount().is_none() && self.is_second_check && !self.is_carrying {
                     // Send DONE and reset
+                    self.received_begin = true;
+                    self.receiver_ids = self.local_cluster.clone();
                     self.scored();
+                    self.local_cluster.clear();
                     self.reset();
                     self.planned_actions.clear();
                     self.is_second_check = false;
@@ -864,7 +867,9 @@ impl Robot {
                 self.consensus_coord = self.target_gold;
                 println!("Robot {} has Consensus pair: {:?}", self.team.style(self.id.to_string()), self.consensus_pair);
                 // Self is chosen as designated pair
-                if (self.id == a || self.id == b) && self.planned_actions.is_empty() && self.target_gold.is_some() {
+                // if (self.id == a || self.id == b) && self.planned_actions.is_empty() && self.target_gold.is_some() {
+                if (self.id == a || self.id == b) && self.target_gold.is_some() {
+                    self.planned_actions.clear();
                     if a as u32 > b as u32 {
                         self.combined_pair_id = Some(a as u32);
                     } else {
@@ -1012,6 +1017,7 @@ impl Robot {
                                     self.id as u32,
                                     message.message_content,
                                 ), self.local_cluster.clone());
+                                self.current_state = RobotState::MovingToTarget;
                             }
                         }
                     },
@@ -1147,7 +1153,7 @@ impl Robot {
 
                                     self.local_cluster = singles;
                                     self.target_gold = max_coord;
-                                    self.consensus_coord = max_coord;
+                                    // self.consensus_coord = max_coord;
                                     self.current_state = RobotState::Paxos;
                                 }
                             }
@@ -1207,8 +1213,8 @@ impl Robot {
                                             self.old_target_gold = self.target_gold;
                                             self.received_begin = true;
                                             self.receiver_ids = self.local_cluster.clone();
-                                            self.local_cluster.clear();
                                             self.scored();
+                                            self.local_cluster.clear();
                                             self.reset();
                                             self.planned_actions.clear();
                                             self.plan_actions_to_move_to(self.deposit_box_coord);
@@ -1218,9 +1224,15 @@ impl Robot {
                                             // self.planned_actions.push(Action::Move);
                                             // self.planned_actions.push(Action::Turn(Direction::Right));
                                             // self.planned_actions.push(Action::Move);
+                                        } else if self.planned_actions.is_empty() && self.current_state != RobotState::AtTarget {
+                                            self.plan_actions_to_move_to(self.deposit_box_coord);
                                         }
                                     },
-                                    _ => {}
+                                    _ => {
+                                        if self.planned_actions.is_empty() {
+                                            self.plan_actions_to_move_to(self.deposit_box_coord);
+                                        }
+                                    }
                                 }
                             },
                             None => {}
@@ -1299,7 +1311,7 @@ impl Debug for Robot {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.team {
             Team::Red => {
-                write!(f, "{} is at {:?} facing {:?} - ", self.id.to_string().red(), self.current_coord, self.facing)?;
+                write!(f, "{}({:?}) is at {:?} facing {:?} - ", self.id.to_string().red(), self.current_state, self.current_coord, self.facing)?;
                 write!(f, "Consensus coord: {:?} - ", self.consensus_coord)?;
                 write!(f, "Consensus pair: {:?} - ", self.consensus_pair)?;
                 write!(f, "Target gold: {:?} - ", self.target_gold)?;
@@ -1311,7 +1323,7 @@ impl Debug for Robot {
                 }
             },
             Team::Blue => {
-                write!(f, "{} is at {:?} facing {:?} - ", self.id.to_string().blue(), self.current_coord, self.facing)?;
+                write!(f, "{}({:?}) is at {:?} facing {:?} - ", self.id.to_string().blue(), self.current_state, self.current_coord, self.facing)?;
                 write!(f, "Consensus coord: {:?} - ", self.consensus_coord)?;
                 write!(f, "Consensus pair: {:?} - ", self.consensus_pair)?;
                 write!(f, "Target gold: {:?} - ", self.target_gold)?;
