@@ -74,6 +74,7 @@ pub enum Action {
     Move,
     Turn(Direction),
     PickUp,
+    Idle,
 }
 
 impl Debug for Action {
@@ -82,6 +83,7 @@ impl Debug for Action {
             Action::Move => write!(f, "{}", "MOVE".green().bold()),
             Action::Turn(direction) => write!(f, "{} to {:?}", "TURN".red().bold(), direction),
             Action::PickUp => write!(f, "{}", "PICK UP".yellow().bold()),
+            Action::Idle => write!(f, "{}", "IDLE".blue().bold()),
         }
     }
 }
@@ -412,27 +414,31 @@ impl Robot {
                 if self.pre_pickup_pair_id.unwrap() == self.pair_id.unwrap() {
                     self.current_state = RobotState::MovingToDropBox;
                     self.plan_actions_to_move_to(self.deposit_box_coord);
-                    Action::Turn(Direction::Up)
+                    Action::Idle
+                    // Action::Turn(Direction::Up)
                 } else {
                     self.carrying_with_wrong_pair = true;
                     Action::PickUp
                 }
             } else {
-                // Turn randomly
-                match rand::random_range(1..5) {
-                    1 => Turn(Direction::Left),
-                    2 => Turn(Direction::Right),
-                    3 => Turn(Direction::Up),
-                    _ => Turn(Direction::Down),
+                if self.current_state != RobotState::ClusterFinding && self.current_state != RobotState::WaitingForTaskCompletion {
+                    // Turn randomly
+                    match rand::random_range(1..5) {
+                        1 => Turn(Direction::Left),
+                        2 => Turn(Direction::Right),
+                        3 => Turn(Direction::Up),
+                        _ => Turn(Direction::Down),
+                    }
+                } else {
+                    // Act randomly
+                    match rand::random_range(1..6) {
+                        1 => Turn(Direction::Left),
+                        2 => Turn(Direction::Right),
+                        3 => Turn(Direction::Down),
+                        4 => Turn(Direction::Up),
+                        _ => Action::Move,
+                    }
                 }
-                // Act randomly
-                // match rand::random_range(1..6) {
-                //     1 => Turn(Direction::Left),
-                //     2 => Turn(Direction::Right),
-                //     3 => Turn(Direction::Down),
-                //     4 => Turn(Direction::Up),
-                //     _ => Action::Move,
-                // }
                 // match self.facing {
                 //     Direction::Left => Turn(Direction::Right),
                 //     Direction::Right => Turn(Direction::Left),
@@ -461,6 +467,10 @@ impl Robot {
             },
             Action::PickUp => {
                 self.action_history.push(Action::PickUp);
+                self.coord_history.push(self.current_coord);
+            },
+            Action::Idle => {
+                self.action_history.push(Action::Idle);
                 self.coord_history.push(self.current_coord);
             }
         }
@@ -882,6 +892,9 @@ impl Robot {
                     }
                     self.plan_actions_to_move_to(self.target_gold.unwrap());
                     println!("Plan to move to {:?}: {:?}", self.target_gold.unwrap(), self.planned_actions);
+                    self.current_state = RobotState::MovingToTarget;
+                } else {
+                    self.current_state = RobotState::WaitingForTaskCompletion;
                 }
             },
             _ => {}
@@ -1017,14 +1030,14 @@ impl Robot {
                                     self.id as u32,
                                     message.message_content,
                                 ), self.local_cluster.clone());
-                                self.current_state = RobotState::MovingToTarget;
+                                // self.current_state = RobotState::MovingToTarget;
                             }
                         }
                     },
                     MessageType::Confirm => {
                         if self.current_state == RobotState::Paxos {
                             self.set_consensus(message.message_content);
-                            self.current_state = RobotState::MovingToTarget;
+                            // self.current_state = RobotState::MovingToTarget;
                         }
                     }
                     MessageType::Nack => {
@@ -1316,6 +1329,9 @@ impl Debug for Robot {
                 write!(f, "Consensus pair: {:?} - ", self.consensus_pair)?;
                 write!(f, "Target gold: {:?} - ", self.target_gold)?;
                 write!(f, "Local cluster: {:?}", self.local_cluster)?;
+                if self.target_gold.is_some() {
+                    write!(f, " Current target gold observation: {:?}", self.knowledge_base.get(&self.target_gold.unwrap()))?;
+                }
                 if self.is_carrying {
                     write!(f, " is {} with {}", "CARRYING GOLD".yellow().bold(), self.pair_id.unwrap().to_string().red().dimmed())
                 } else {
@@ -1328,6 +1344,9 @@ impl Debug for Robot {
                 write!(f, "Consensus pair: {:?} - ", self.consensus_pair)?;
                 write!(f, "Target gold: {:?} - ", self.target_gold)?;
                 write!(f, "Local cluster: {:?}", self.local_cluster)?;
+                if self.target_gold.is_some() {
+                    write!(f, " Current target gold observation: {:?}", self.knowledge_base.get(&self.target_gold.unwrap()))?;
+                }
                 if self.is_carrying {
                     write!(f, " is {} with {}", "CARRYING GOLD".yellow().bold(), self.pair_id.unwrap().to_string().blue().dimmed())
                 } else {
