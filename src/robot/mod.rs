@@ -840,7 +840,7 @@ impl Robot {
         for receiver_id in receiver_ids {
             let mut random_timer_message = message;
             let mut rng = rand::rng();
-            let timer = rng.random_range(0..=0);
+            let timer = rng.random_range(0..=3);
             random_timer_message.timer = timer;
             message_board_guard.get_message_board().entry(receiver_id).or_default().send_messages(random_timer_message);
         }
