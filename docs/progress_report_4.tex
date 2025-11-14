@@ -119,6 +119,14 @@ fn message_receiver(&mut self, received_message: Option<Message>) {
 
 
 \section{Handling Message Delay}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{images/robot_state_diagram.png}
+\caption{State Machine illustrating the robot’s internal state transitions}
+\label{fig:robot-state-diagram}
+\end{figure}
+
 In the previous milestone, message delay was introduced to enhance the realism of the simulation by adding random latency to all robot communications. This improvement successfully made the environment more reflective of real-world conditions, where messages are rarely instantaneous. However, the introduction of message delay also revealed several issues in the existing coordination mechanisms, particularly in how robots handled delayed messages that arrived long after their intended context.
 
 The most significant problem occurred when certain messages were delayed excessively, resulting in them being received during a later phase of operation—for example, a message from the first pickup-drop cycle might be received during the second. This caused inconsistencies in coordination and synchronization between robots, especially when combined with the Cross Cluster Communication protocol. In that system, \texttt{GETOUT} messages could cause certain robots to reset or change behavior prematurely if they misinterpreted delayed messages as current ones.
@@ -137,7 +145,7 @@ When a robot receives any message, it first checks its current state and determi
 
 Crucially, the robot’s state transitions are governed solely by its own local observations and internally received information, ensuring that the state machine operates without external assumptions or “cheating.” This design guarantees that state progression remains consistent across all robots despite asynchronous message timing.
 
-% Figure~\ref{fig:robot-state-diagram} illustrates the complete robot state transition flow.
+Figure~\ref{fig:robot-state-diagram} illustrates the complete robot state transition flow.
 
 \begin{lstlisting}[float, caption={Checking the robot's current state before processing messages}, label={lst:state-check}]
 fn message_receiver(&mut self, received_message: Option<Message>) {
@@ -158,12 +166,6 @@ fn message_receiver(&mut self, received_message: Option<Message>) {
 }
 \end{lstlisting}
 
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.65\linewidth]{images/robot_state_flowchart.png}
-% \caption{Flowchart illustrating the robot’s internal state transitions and how message handling depends on its current operational state.}
-% \label{fig:robot-state-diagram}
-% \end{figure}
 
 \section{Current Progress and Results}
 \begin{enumerate}
