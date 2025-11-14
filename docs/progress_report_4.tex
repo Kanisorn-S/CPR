@@ -27,6 +27,14 @@ This report presents the fourth milestone of the Cyber-Physical Robots (CPR) pro
 This milestone builds on the previously implemented continuous planning and message delay system by addressing coordination issues that emerged under asynchronous communication. Previously, multiple clusters could target the same gold, causing deadlocks, and delayed messages could trigger incorrect robot behaviors. To solve these problems, we introduced a cross-cluster communication protocol for conflict resolution and a state-driven message handling system for maintaining consistency. Together, these improvements create a more resilient and realistic cooperative robotic simulation.
 
 \section{Cross Cluster Communication}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{images/cross_cluster_flowchart.png}
+\caption{Flowchart illustrating the Cross Cluster Communication protocol using the GETOUT message for conflict resolution.}
+\label{fig:cross-cluster-flowchart}
+\end{figure}
+
 In the previous milestone, Continuous Planning and Execution was introduced, allowing each robot cluster to operate in a looped fashion—continuously performing pickup and drop-off tasks instead of halting after a single operation. Once a robot pair completed a pickup task, it broadcasted a \texttt{DONE} message to all other robots within its cluster, signaling the completion of the task. The cluster then regrouped and reformed new subclusters based on the target gold positions, thus initiating the next iteration of task allocation and execution.
 
 While this continuous process enabled uninterrupted operation, it introduced a new problem: different subclusters, originating from separate parent clusters, could target the same piece of gold. This led to multiple robot pairs attempting to perform the \texttt{PICKUP} action simultaneously on the same target, resulting in deadlock-like behavior where robots remained stuck and unable to complete their pickup routines.
@@ -44,7 +52,7 @@ When a robot receives a \texttt{GETOUT} message, its behavior depends on its cur
 
 This priority-based resolution ensures that only one robot pair continues the pickup operation at a time, while others automatically back off, thus preventing task conflicts and allowing the system to maintain continuous operation without interruption.
 
-% A flowchart summarizing the overall cross-cluster communication process is presented in Figure~\ref{fig:cross-cluster-flowchart}.
+A flowchart summarizing the overall cross-cluster communication process is presented in Figure~\ref{fig:cross-cluster-flowchart}.
 
 \begin{lstlisting}[float, caption={Sending the GETOUT message when conflict is detected}, label={lst:send-getout}]
 pub fn observe(&mut self, grid: &mut Grid) {
@@ -109,12 +117,6 @@ fn message_receiver(&mut self, received_message: Option<Message>) {
 }
 \end{lstlisting}
 
-% \begin{figure}[h]
-% \centering
-% \includegraphics[width=0.65\linewidth]{images/cross_cluster_flowchart.png}
-% \caption{Flowchart illustrating the Cross Cluster Communication protocol using the GETOUT message for conflict resolution.}
-% \label{fig:cross-cluster-flowchart}
-% \end{figure}
 
 \section{Handling Message Delay}
 In the previous milestone, message delay was introduced to enhance the realism of the simulation by adding random latency to all robot communications. This improvement successfully made the environment more reflective of real-world conditions, where messages are rarely instantaneous. However, the introduction of message delay also revealed several issues in the existing coordination mechanisms, particularly in how robots handled delayed messages that arrived long after their intended context.
