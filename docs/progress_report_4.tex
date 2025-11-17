@@ -8,6 +8,7 @@
 \usepackage{url}
 \usepackage{listings}
 \usepackage{listings-rust}
+\usepackage{cspsymb}
 
 \lstset{language=Rust, style=boxed}
 
@@ -24,7 +25,7 @@ This report presents the fourth milestone of the Cyber-Physical Robots (CPR) pro
 \end{abstract}
 
 \section{Introduction}
-This milestone builds on the previously implemented continuous planning and message delay system by addressing coordination issues that emerged under asynchronous communication. Previously, multiple clusters could target the same gold, causing deadlocks, and delayed messages could trigger incorrect robot behaviors. To solve these problems, we introduced a cross-cluster communication protocol for conflict resolution and a state-driven message handling system for maintaining consistency. Together, these improvements create a more resilient and realistic cooperative robotic simulation.
+This milestone builds on the previously implemented continuous planning and message delay system by addressing coordination issues that emerged. Previously, multiple clusters could target the same gold, causing deadlocks, and delayed messages could trigger incorrect robot behaviors. To solve these problems, we introduced a cross-cluster communication protocol for conflict resolution and a state-driven message handling system for maintaining consistency. Together, these improvements create a more resilient and realistic cooperative robotic simulation.
 
 \section{Cross Cluster Communication}
 
@@ -35,24 +36,91 @@ This milestone builds on the previously implemented continuous planning and mess
 \label{fig:cross-cluster-flowchart}
 \end{figure}
 
-In the previous milestone, Continuous Planning and Execution was introduced, allowing each robot cluster to operate in a looped fashion—continuously performing pickup and drop-off tasks instead of halting after a single operation. Once a robot pair completed a pickup task, it broadcasted a \texttt{DONE} message to all other robots within its cluster, signaling the completion of the task. The cluster then regrouped and reformed new subclusters based on the target gold positions, thus initiating the next iteration of task allocation and execution.
+In the previous milestone, Continuous Planning and Execution was introduced, allowing each robot cluster to operate in a looped fashion, continuously performing pickup and drop-off tasks instead of halting after a single operation. Once a robot pair completed a pickup task, it broadcasted a \texttt{DONE} message to all other robots within its cluster, signaling the completion of the task. The cluster then regrouped and reformed new subclusters based on the target gold positions, thus initiating the next iteration of task allocation and execution.
 
 While this continuous process enabled uninterrupted operation, it introduced a new problem: different subclusters, originating from separate parent clusters, could target the same piece of gold. This led to multiple robot pairs attempting to perform the \texttt{PICKUP} action simultaneously on the same target, resulting in deadlock-like behavior where robots remained stuck and unable to complete their pickup routines.
 
 To resolve this, a new communication protocol was implemented, introducing a specialized message type called \texttt{GETOUT}. The \texttt{GETOUT} message serves as a cross-cluster coordination mechanism that ensures only one robot pair proceeds with the pickup action on any given piece of gold.
 
-The improved process works as follows: within each cluster, a designated robot pair is chosen to approach the target gold. As it navigates toward the target, the nominated robot continuously monitors the gold’s position. If it detects any robots from the same team that are not its designated partner, it sends a \texttt{GETOUT} message to those robots, as shown in Listing~\ref{lst:send-getout}. The message contains the coordinates of the target gold as its payload, instructing the receiving robots to vacate the area.
+The improved process works as follows: within each cluster, a designated robot pair is chosen to approach the target gold. As it navigates toward the target, the nominated robot continuously monitors the gold’s position. If it detects any robots from the same team that are not its designated partner, it sends a \texttt{GETOUT} message to those robots. The message contains the coordinates of the target gold as its payload, instructing the receiving robots to vacate the area.
 
-When a robot receives a \texttt{GETOUT} message, its behavior depends on its current role and target, as shown in Listing~\ref{lst:recv-getout}:
+When a robot receives a \texttt{GETOUT} message, its behavior depends on its current role and target: 
 \begin{itemize}
 \item If it is \textbf{not} a designated robot (i.e., not selected by its cluster to perform a pickup), it simply ignores the message content but moves out of the area to prevent receiving repeated \texttt{GETOUT} messages.
 \item If it \textbf{is} a designated robot but its own target gold coordinate does not match the one in the message, it ignores the message and continues toward its assigned target. This typically occurs when the robot is just passing by.
 \item If it \textbf{is} a designated robot and the message’s coordinate matches its own target gold, it compares the sender pair’s ID with its own. If the sender’s pair ID is greater, it executes the \texttt{RESET} routine, equivalent to what occurs after a successful pickup-drop sequence, effectively yielding the gold to the higher-priority pair.
 \end{itemize}
 
+Before implementing the designed communication protocol, we verified the correctness using Communication Sequential Processes (CSP). We modeled the robot's \texttt{GETOUT} protocol using CSP notation and checked for deadlocks using the FDR4.0~\cite{fdr}. 
+\begin{align*}
+  \text{\texttt{ROBOT\_MOV}} = &((\text{getout?m} \then \text{\texttt{RESPONDM}} \extchoice \text{reach} \then \text{\texttt{ROBOT\_REACH}} )    \extchoice \texttt{see} \then \texttt{SENDM}) \\ 
+  \text{\texttt{ROBOT\_REACH}} = &((\text{getout?m} \then \text{\texttt{RESPONDR}} \extchoice \text{pickup} \then \text{\texttt{ROBOT\_CARRY}} ) \extchoice \texttt{see} \then \texttt{SENDR}) \\
+  \text{\texttt{ROBOT\_CARRY}} = &(\text{getout?m} \then \text{\texttt{ROBOT\_CARRY}} \extchoice \text{dropbox} \then \text{\texttt{ROBOT\_MOV}} ) \\
+  \text{\texttt{RESPONDM}} = &(\text{prio} \then \text{\texttt{ROBOT\_MOV}} \extchoice \text{nprio} \then \text{\texttt{ROBOT\_MOV}} ) \\
+  \text{\texttt{RESPONDR}} = &(\text{prio} \then \text{\texttt{ROBOT\_MOV}} \extchoice \text{nprio} \then \text{\texttt{ROBOT\_REACH}} ) \\
+  \text{\texttt{SENDM1}} = &((\text{getout!m} \then (\text{nprio} \then \text{\texttt{ROBOT\_MOV}})) \extchoice \text{getout?m} \then \text{\texttt{RESPONDM}}) \\
+  \text{\texttt{SENDR1}} = &((\text{getout!m} \then (\text{nprio} \then \text{\texttt{ROBOT\_REACH}})) \extchoice \text{getout?m} \then \text{\texttt{RESPONDR}}) \\
+  \text{\texttt{SENDM2}} = &((\text{getout!m} \then (\text{nprio} \then \text{\texttt{ROBOT\_MOV}})) \extchoice \text{getout?m} \then \text{\texttt{RESPONDM}}) \\
+  \text{\texttt{SENDR2}} = &((\text{getout!m} \then (\text{nprio} \then \text{\texttt{ROBOT\_REACH}})) \extchoice \text{getout?m} \then \text{\texttt{RESPONDR}}) \\ 
+  \text{\texttt{SYSTEM}} = &(\text{\texttt{ROBOT\_MOV1}} | \{ \text{getout}, \text{see}, \text{reach}, \text{prio}, \text{nprio} \text{pickup} \text{dropbox} \} | \text{\texttt{ROBOT\_MOV2}}) 
+\end{align*}
+
+To model the \texttt{GETOUT} protocol, we defined several processes to represent the robot's behavior while moving towards a target gold.
+
+To verify the absence of deadlocks in the \texttt{GETOUT} protocol, we translated the above CSP model into $CSP_M$ syntax~\cite{cspm}, as shown in Listing~\ref{lst:csp}, and created a system of two robots moving towards a common target gold.
+
+\begin{lstlisting}[float, caption={\texttt{GETOUT} protocol represented using $CSP_M$}, label={lst:csp}]
+channel getout, see: {1, 2}
+channel reach, prio, nprio, pickup, dropbox
+
+ROBOT_MOV1 = ((getout?1 -> RESPONDM1 [] reach -> ROBOT_REACH1) 
+              [] see?1 -> SENDM1)
+ROBOT_REACH1 = ((getout?1 -> RESPONDR1 [] pickup -> ROBOT_CARRY1) 
+                [] see?1 -> SENDR1)
+ROBOT_CARRY1 = ((getout?1 -> ROBOT_CARRY1) [] dropbox -> ROBOT_MOV1)
+
+RESPONDM1 = (prio -> ROBOT_MOV1 [] nprio -> ROBOT_MOV1)
+RESPONDR1 = (prio -> ROBOT_MOV1 [] nprio -> ROBOT_REACH1)
+
+SENDM1 = ((getout!2 -> (nprio -> ROBOT_MOV1)) 
+          [] getout?1 -> RESPONDM1)
+SENDR1 = ((getout!2 -> (nprio -> ROBOT_REACH1)) 
+          [] getout?1 -> RESPONDR1)
+
+
+ROBOT_MOV2 = ((getout?2 -> RESPONDM1 [] reach -> ROBOT_REACH2) 
+              [] see?2 -> SENDM2)
+ROBOT_REACH2 = ((getout?2 -> RESPONDR2 [] pickup -> ROBOT_CARRY2) 
+                [] see?2 -> SENDR2)
+ROBOT_CARRY2 = ((getout?2 -> ROBOT_CARRY2) [] dropbox -> ROBOT_MOV2)
+
+RESPONDM2 = (prio -> ROBOT_MOV2 [] nprio -> ROBOT_MOV2)
+RESPONDR2 = (prio -> ROBOT_MOV2 [] nprio -> ROBOT_REACH2)
+
+SENDM2 = ((getout!1 -> (nprio -> ROBOT_MOV2)) 
+          [] getout?2 -> RESPONDM2)
+SENDR2 = ((getout!1 -> (nprio -> ROBOT_REACH2)) 
+          [] getout?2 -> RESPONDR2)
+
+SYSTEM = ROBOT_MOV1 [| 
+          {| getout, see, reach, prio, nprio, pickup, dropbox |} 
+        |] ROBOT_MOV2
+
+assert SYSTEM :[deadlock free]
+\end{lstlisting}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.5\linewidth]{images/fdr_result_getout.png}
+    \caption{FDR4.0 Result Showing No Deadlock in the \texttt{GETOUT} Protocol}   
+    \label{fig:fdr-result}  
+\end{figure}
+
+We verified the \texttt{GETOUT} protocol using the FDR4.0. From the result, shown in Figure~\ref{fig:fdr-result}, we confirmed that the system is deadlock-free.
+
 This priority-based resolution ensures that only one robot pair continues the pickup operation at a time, while others automatically back off, thus preventing task conflicts and allowing the system to maintain continuous operation without interruption.
 
-A flowchart summarizing the overall cross-cluster communication process is presented in Figure~\ref{fig:cross-cluster-flowchart}.
+After verifying the \texttt{GETOUT} protocol, we implemented the sending, as shown in Listing~\ref{lst:send-getout}, and receiving, as shown in Listing~\ref{lst:recv-getout}, part of the protocol into the robot's control code. A flowchart summarizing the overall cross-cluster communication process is presented in Figure~\ref{fig:cross-cluster-flowchart}.
 
 \begin{lstlisting}[float, caption={Sending the GETOUT message when conflict is detected}, label={lst:send-getout}]
 pub fn observe(&mut self, grid: &mut Grid) {
@@ -179,5 +247,9 @@ A new \texttt{RobotState} system was implemented to manage delayed messages. Rob
 
 \section{Conclusion}
 This milestone improves reliability in both coordination and communication. The \texttt{GETOUT} protocol ensures conflict-free cross-cluster operation, while the \texttt{RobotState} system maintains logical consistency under message delay. Together, these updates create a more robust, continuous, cooperative, and complete simulation.
+
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{ref}
 
 \end{document}
