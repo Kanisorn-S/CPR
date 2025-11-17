@@ -1,0 +1,183 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{listings}
+\usepackage{listings-rust}
+
+\lstset{language=Rust, style=boxed}
+
+\title{Cyber Physical Robots\\Term Project Progress Report IV}
+\author{Kanisorn Sangchai (ID: 6538020621)}
+\date{November 21, 2025}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report presents the fourth milestone of the Cyber-Physical Robots (CPR) project, focusing on improving coordination robustness and communication reliability in multi-robot systems. Two key enhancements were introduced: (1) a Cross Cluster Communication protocol using a \texttt{GETOUT} message to prevent conflicts between clusters targeting the same gold, and (2) a state-based message handling mechanism using \texttt{RobotState} to filter out delayed or outdated messages. These improvements significantly enhance the system’s stability and ensure smooth, continuous operation. The source code for this project is available at: \url{https://github.com/Kanisorn-S/CPR}.
+\end{abstract}
+
+\section{Introduction}
+This milestone builds on the previously implemented continuous planning and message delay system by addressing coordination issues that emerged under asynchronous communication. Previously, multiple clusters could target the same gold, causing deadlocks, and delayed messages could trigger incorrect robot behaviors. To solve these problems, we introduced a cross-cluster communication protocol for conflict resolution and a state-driven message handling system for maintaining consistency. Together, these improvements create a more resilient and realistic cooperative robotic simulation.
+
+\section{Cross Cluster Communication}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{images/cross_cluster_flowchart.png}
+\caption{Flowchart illustrating the Cross Cluster Communication protocol using the GETOUT message for conflict resolution.}
+\label{fig:cross-cluster-flowchart}
+\end{figure}
+
+In the previous milestone, Continuous Planning and Execution was introduced, allowing each robot cluster to operate in a looped fashion—continuously performing pickup and drop-off tasks instead of halting after a single operation. Once a robot pair completed a pickup task, it broadcasted a \texttt{DONE} message to all other robots within its cluster, signaling the completion of the task. The cluster then regrouped and reformed new subclusters based on the target gold positions, thus initiating the next iteration of task allocation and execution.
+
+While this continuous process enabled uninterrupted operation, it introduced a new problem: different subclusters, originating from separate parent clusters, could target the same piece of gold. This led to multiple robot pairs attempting to perform the \texttt{PICKUP} action simultaneously on the same target, resulting in deadlock-like behavior where robots remained stuck and unable to complete their pickup routines.
+
+To resolve this, a new communication protocol was implemented, introducing a specialized message type called \texttt{GETOUT}. The \texttt{GETOUT} message serves as a cross-cluster coordination mechanism that ensures only one robot pair proceeds with the pickup action on any given piece of gold.
+
+The improved process works as follows: within each cluster, a designated robot pair is chosen to approach the target gold. As it navigates toward the target, the nominated robot continuously monitors the gold’s position. If it detects any robots from the same team that are not its designated partner, it sends a \texttt{GETOUT} message to those robots, as shown in Listing~\ref{lst:send-getout}. The message contains the coordinates of the target gold as its payload, instructing the receiving robots to vacate the area.
+
+When a robot receives a \texttt{GETOUT} message, its behavior depends on its current role and target, as shown in Listing~\ref{lst:recv-getout}:
+\begin{itemize}
+\item If it is \textbf{not} a designated robot (i.e., not selected by its cluster to perform a pickup), it simply ignores the message content but moves out of the area to prevent receiving repeated \texttt{GETOUT} messages.
+\item If it \textbf{is} a designated robot but its own target gold coordinate does not match the one in the message, it ignores the message and continues toward its assigned target. This typically occurs when the robot is just passing by.
+\item If it \textbf{is} a designated robot and the message’s coordinate matches its own target gold, it compares the sender pair’s ID with its own. If the sender’s pair ID is greater, it executes the \texttt{RESET} routine, equivalent to what occurs after a successful pickup-drop sequence, effectively yielding the gold to the higher-priority pair.
+\end{itemize}
+
+This priority-based resolution ensures that only one robot pair continues the pickup operation at a time, while others automatically back off, thus preventing task conflicts and allowing the system to maintain continuous operation without interruption.
+
+A flowchart summarizing the overall cross-cluster communication process is presented in Figure~\ref{fig:cross-cluster-flowchart}.
+
+\begin{lstlisting}[float, caption={Sending the GETOUT message when conflict is detected}, label={lst:send-getout}]
+pub fn observe(&mut self, grid: &mut Grid) {
+  // ... other code ...
+
+  if  self.knowledge_base.get(&self.target_gold).team_robots > 2 {
+    let (a, b) = self.consensus_pair.unwrap();
+    let filtered = self.knowledge_base.get(&self.target_gold).robot_ids
+                    .iter()
+                    .filter(|&&c| c != a && c != b) 
+                    .cloned() 
+                    .collect();
+    self.send(Message::new(
+      self.id,
+      MessageType::GetOut,
+      self.combined_pair_id.unwrap(),
+      MessageContent::Coord(self.target_gold, Some(0u8)),
+    ), filtered);
+  }
+
+  // ... other code ...
+}
+\end{lstlisting}
+
+\begin{lstlisting}[float, caption={Handling an incoming GETOUT message}, label={lst:recv-getout}]
+fn message_receiver(&mut self, received_message: Option<Message>) {
+  // ... other message types ...
+
+  MessageType::GetOut => {
+    match self.combined_pair_id {
+      Some(combined_pair_id) => {
+        // If robot is a designated robot, check the message content
+        match message.message_content {
+          MessageContent::Coord(Some(get_out_coord), _) => {
+            if self.current_coord == get_out_coord 
+                && message.id > combined_pair_id {
+              // If the message coord matches own target 
+              // and sender has higher priority, reset and move out
+              self.reset();
+              self.planned_actions.clear();
+              self.plan_actions_to_move_to(self.deposit_box_coord);
+            }else {
+              // If the message coord does not match own target, 
+              // just move out of the area
+              self.plan_actions_to_move_to(self.deposit_box_coord);
+            }
+          },
+          _ => {},
+        },
+        None => {
+          // If robot is not a designated robot, 
+          // just move out of the area
+          if self.planned_actions.is_empty() {
+            self.plan_actions_to_move_to(self.deposit_box_coord);
+          }
+        }
+      }
+    }
+  }
+
+  // ... other message types ...
+}
+\end{lstlisting}
+
+
+\section{Handling Message Delay}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{images/robot_state_diagram.png}
+\caption{State Machine illustrating the robot’s internal state transitions}
+\label{fig:robot-state-diagram}
+\end{figure}
+
+In the previous milestone, message delay was introduced to enhance the realism of the simulation by adding random latency to all robot communications. This improvement successfully made the environment more reflective of real-world conditions, where messages are rarely instantaneous. However, the introduction of message delay also revealed several issues in the existing coordination mechanisms, particularly in how robots handled delayed messages that arrived long after their intended context.
+
+The most significant problem occurred when certain messages were delayed excessively, resulting in them being received during a later phase of operation—for example, a message from the first pickup-drop cycle might be received during the second. This caused inconsistencies in coordination and synchronization between robots, especially when combined with the Cross Cluster Communication protocol. In that system, \texttt{GETOUT} messages could cause certain robots to reset or change behavior prematurely if they misinterpreted delayed messages as current ones.
+
+To address this issue, a new state tracking mechanism was implemented in the form of a \texttt{RobotState} enum. This enum explicitly tracks the current operational state of each robot, ensuring that messages are processed only when relevant to the robot’s active task stage. The \texttt{RobotState} enum includes the following states:
+\begin{itemize}
+\item \texttt{ClusterFinding} – The robot is identifying or joining a cluster.
+\item \texttt{Paxos} – The robot is participating in the consensus process to select the designated robot pair.
+\item \texttt{WaitingForTaskCompletion} – The robot is not a designated robot and is idle, awaiting task completion confirmation.
+\item \texttt{MovingToTarget} – The robot is navigating toward its assigned gold target.
+\item \texttt{AtTarget} – The robot has reached the gold position and is performing the pickup.
+\item \texttt{MovingToDropBox} – The robot is transporting the collected gold to the drop box.
+\end{itemize}
+
+When a robot receives any message, it first checks its current state and determines whether it is appropriate to process the message type, as shown in Listing~\ref{lst:state-check}. For instance, a \texttt{PrepareRequest} message should only be accepted when the robot is in the \texttt{Paxos} state. If a robot receives a message that is inconsistent with its state (e.g., receiving a \texttt{PrepareRequest} while in \texttt{MovingToDropBox}), it concludes that the message has been excessively delayed and is now outdated, and thus ignores it.
+
+Crucially, the robot’s state transitions are governed solely by its own local observations and internally received information, ensuring that the state machine operates without external assumptions or “cheating.” This design guarantees that state progression remains consistent across all robots despite asynchronous message timing.
+
+Figure~\ref{fig:robot-state-diagram} illustrates the complete robot state transition flow.
+
+\begin{lstlisting}[float, caption={Checking the robot's current state before processing messages}, label={lst:state-check}]
+fn message_receiver(&mut self, received_message: Option<Message>) {
+  match received_message {
+    Some(message) => {
+      match message.msg_type {
+        MessageType::PrepareRequest => {
+          // Check the robot's current state
+          if self.current_state == RobotState::Paxos {
+            // Handle PrepareRequest message
+          }
+        },
+        // ... other message types ...
+      }
+    },
+    _ => {}
+  }
+}
+\end{lstlisting}
+
+
+\section{Current Progress and Results}
+\begin{enumerate}
+\item \textbf{Cross Cluster Communication:}
+A new \texttt{GETOUT} message protocol was introduced to prevent multiple clusters from targeting the same gold. When a designated robot detects another pair approaching its target, it sends a \texttt{GETOUT} message. Receivers verify whether the message applies to their current task—if the sender has higher priority, they perform a \texttt{RESET}. This ensures only one pair proceeds, eliminating deadlocks and enabling smooth continuous operation.
+
+\item \textbf{Handling Message Delay:}  
+A new \texttt{RobotState} system was implemented to manage delayed messages. Robots now process messages only when relevant to their current state (e.g., \texttt{Paxos}, \texttt{MovingToTarget}). Out-of-context messages are ignored, preventing errors from old or delayed communications and ensuring consistent task progression.  
+
+\end{enumerate}
+
+\section{Conclusion}
+This milestone improves reliability in both coordination and communication. The \texttt{GETOUT} protocol ensures conflict-free cross-cluster operation, while the \texttt{RobotState} system maintains logical consistency under message delay. Together, these updates create a more robust, continuous, cooperative, and complete simulation.
+
+\end{document}

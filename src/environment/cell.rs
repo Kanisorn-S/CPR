@@ -12,11 +12,11 @@ enum CellContent {
 #[derive(Clone)]
 pub struct Cell {
     pub coord: Coord,
-    red_robots: u8,
-    red_robots_ids: Vec<char>,
-    blue_robots: u8,
-    blue_robots_ids: Vec<char>,
-    content: Option<CellContent>,
+    pub red_robots: u8,
+    pub red_robots_ids: Vec<char>,
+    pub blue_robots: u8,
+    pub blue_robots_ids: Vec<char>,
+    pub content: Option<CellContent>,
 }
 
 // Constructor
@@ -78,7 +78,7 @@ impl Cell {
 impl Cell {
     pub fn get_gold_amount(&self) -> Option<u8> {
         match self.content {
-            Some(CellContent::GoldBars(n)) if n > 0 => Some(n),
+            Some(CellContent::GoldBars(n)) => Some(n),
             _ => None,
         }
     }

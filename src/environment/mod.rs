@@ -28,21 +28,29 @@ pub struct World {
     blue_team: RobotManager,
     
     logger_config: LoggerConfig,
+
+    pub total_gold_amount: u8,
 }
 
 // Constructor and Getters
 impl World {
     pub fn new(width: usize, height: usize, p_gold: f64, max_gold: u8, n_robots: u8, manual: bool) -> Self {
         let mut grid: Vec<Vec<Cell>> = Vec::new();
+        let mut total_gold_amount = 0;
         for y in (0..height).rev() {
             let mut row: Vec<Cell> = Vec::new();
             for x in 0..width {
-                row.push(Cell::new((x, y), p_gold, max_gold));
+                let new_cell = Cell::new((x, y), p_gold, max_gold);
+                if new_cell.get_gold_amount().is_some() {
+                    total_gold_amount += new_cell.get_gold_amount().unwrap();
+                }
+                row.push(new_cell);
             }
             grid.push(row);
         }
         let mut grid = Grid::new(grid, width, height);
-        let (red_deposit_box, blue_deposit_box) = Self::spawn_deposit_box(width, height, &mut grid);
+        let (red_deposit_box, blue_deposit_box, gold_to_be_removed) = Self::spawn_deposit_box(width, height, &mut grid);
+        total_gold_amount -= gold_to_be_removed;
         let (blue_team, blue_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Blue, blue_deposit_box);
         let (red_team, red_message_board) = Self::spawn_robots(width, height, &mut grid, n_robots, Team::Red, red_deposit_box);
         Self {
@@ -58,6 +66,7 @@ impl World {
             red_team: RobotManager::new(Team::Red, red_team, red_message_board),
             blue_team: RobotManager::new(Team::Blue, blue_team, blue_message_board),
             logger_config: LoggerConfig::new(),
+            total_gold_amount,
         }
     }
 
@@ -101,7 +110,8 @@ impl World {
 
 // Initialization functions
 impl World {
-    fn spawn_deposit_box(width: usize, height: usize, grid: &mut Grid) -> (Coord, Coord) {
+    fn spawn_deposit_box(width: usize, height: usize, grid: &mut Grid) -> (Coord, Coord, u8) {
+        let mut gold_to_be_remove = 0;
         let red_deposit_box = Coord::random(0..width, 0..height);
         let mut blue_deposit_box: Coord;
         loop {
@@ -110,9 +120,15 @@ impl World {
                 break;
             }
         }
+        if grid.get_cell(red_deposit_box).unwrap().get_gold_amount().is_some() {
+            gold_to_be_remove += grid.get_cell(red_deposit_box).unwrap().get_gold_amount().unwrap();
+        }
+        if grid.get_cell(blue_deposit_box).unwrap().get_gold_amount().is_some() {
+            gold_to_be_remove += grid.get_cell(blue_deposit_box).unwrap().get_gold_amount().unwrap();
+        }
         grid.get_mut_cell(red_deposit_box).unwrap().set_deposit_box(Team::Red);
         grid.get_mut_cell(blue_deposit_box).unwrap().set_deposit_box(Team::Blue);
-        (red_deposit_box, blue_deposit_box)
+        (red_deposit_box, blue_deposit_box, gold_to_be_remove)
     }
 
     fn spawn_robots(width: usize, height: usize, grid: &mut Grid, n_robots: u8, team: Team, deposit_box: Coord) -> (HashMap<char, Robot>, Arc<Mutex<MessageBoard>>) {
@@ -332,6 +348,8 @@ impl World {
     fn check_drop_deposit(&mut self) {
         let red_carriers = self.red_team.get_carrying_robot();
         let blue_carriers = self.blue_team.get_carrying_robot();
+        println!("red_carriers: {:?}", red_carriers);
+        println!("blue_carriers: {:?}", blue_carriers);
         match red_carriers {
             Some(carriers) => {
                 let mut robot_pos: HashMap<char, &mut Robot> = HashMap::new();

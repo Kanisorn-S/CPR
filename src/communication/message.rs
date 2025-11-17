@@ -17,6 +17,7 @@ pub enum MessageType {
   Request,
   Ack,
   Done,
+  GetOut,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
@@ -24,6 +25,7 @@ pub enum MessageContent {
   Coord(Option<Coord>, Option<u8>),
   Pair(char, char),
   Direction(Direction),
+  TurnReq(Direction, Coord),
 }
 
 #[derive(PartialEq, Hash, Eq, Clone, Copy)]
@@ -80,7 +82,7 @@ impl MessageBox {
       let mut message_available = false;
       match random_message {
         Some(message) => {
-          if (message.timer == 0) {
+          if message.timer == 0 {
             return_message = Some(message.clone());
             message_available = true;
           } else {
@@ -89,7 +91,7 @@ impl MessageBox {
         },
         None => {}
       }
-      if (message_available) {
+      if message_available {
         self.current_messages.remove(random_index);
       }
       return_message
@@ -137,6 +139,9 @@ impl Debug for MessageContent {
       },
       MessageContent::Direction(direction) => {
         write!(f, "{:?}", direction)
+      },
+      MessageContent::TurnReq(direction, coord) => {
+        write!(f, "{:?} has {:?} coords", direction, coord)
       }
     }
   }

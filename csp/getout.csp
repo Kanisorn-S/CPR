@@ -1,0 +1,26 @@
+channel getout, see: {1, 2}
+channel reach, prio, nprio, pickup, dropbox
+
+ROBOT_MOV1 = ((getout?1 -> RESPONDM1 [] reach -> ROBOT_REACH1) [] see?1 -> SENDM1)
+ROBOT_REACH1 = ((getout?1 -> RESPONDR1 [] pickup -> ROBOT_CARRY1) [] see?1 -> SENDR1)
+ROBOT_CARRY1 = ((getout?1 -> ROBOT_CARRY1) [] dropbox -> ROBOT_MOV1)
+
+RESPONDM1 = (prio -> ROBOT_MOV1 [] nprio -> ROBOT_MOV1)
+RESPONDR1 = (prio -> ROBOT_MOV1 [] nprio -> ROBOT_REACH1)
+
+SENDM1 = ((getout!2 -> (nprio -> ROBOT_MOV1)) [] getout?1 -> RESPONDM1)
+SENDR1 = ((getout!2 -> (nprio -> ROBOT_REACH1)) [] getout?1 -> RESPONDR1)
+
+
+ROBOT_MOV2 = ((getout?2 -> RESPONDM1 [] reach -> ROBOT_REACH2) [] see?2 -> SENDM2)
+ROBOT_REACH2 = ((getout?2 -> RESPONDR2 [] pickup -> ROBOT_CARRY2) [] see?2 -> SENDR2)
+ROBOT_CARRY2 = ((getout?2 -> ROBOT_CARRY2) [] dropbox -> ROBOT_MOV2)
+
+RESPONDM2 = (prio -> ROBOT_MOV2 [] nprio -> ROBOT_MOV2)
+RESPONDR2 = (prio -> ROBOT_MOV2 [] nprio -> ROBOT_REACH2)
+
+SENDM2 = ((getout!1 -> (nprio -> ROBOT_MOV2)) [] getout?2 -> RESPONDM2)
+SENDR2 = ((getout!1 -> (nprio -> ROBOT_REACH2)) [] getout?2 -> RESPONDR2)
+
+SYSTEM = ROBOT_MOV1 [| {| getout, see, reach, prio, nprio, pickup, dropbox |} |] ROBOT_MOV2
+assert SYSTEM :[deadlock free]
