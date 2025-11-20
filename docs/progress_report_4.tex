@@ -58,8 +58,8 @@ Before implementing the designed communication protocol, we verified the correct
   \text{\texttt{ROBOT\_CARRY}} = &(\text{getout?m} \then \text{\texttt{ROBOT\_CARRY}} \extchoice \text{dropbox} \then \text{\texttt{ROBOT\_MOV}} ) \\
   \text{\texttt{RESPONDM}} = &(\text{prio} \then \text{\texttt{ROBOT\_MOV}} \extchoice \text{nprio} \then \text{\texttt{ROBOT\_MOV}} ) \\
   \text{\texttt{RESPONDR}} = &(\text{prio} \then \text{\texttt{ROBOT\_MOV}} \extchoice \text{nprio} \then \text{\texttt{ROBOT\_REACH}} ) \\
-  \text{\texttt{SENDM1}} = &((\text{getout!m} \then (\text{nprio} \then \text{\texttt{ROBOT\_MOV}})) \extchoice \text{getout?m} \then \text{\texttt{RESPONDM}}) \\
-  \text{\texttt{SENDR1}} = &((\text{getout!m} \then (\text{nprio} \then \text{\texttt{ROBOT\_REACH}})) \extchoice \text{getout?m} \then \text{\texttt{RESPONDR}}) \\
+  \text{\texttt{SENDM1}} = &((\text{getout!m} \then (\text{prio} \then \text{\texttt{ROBOT\_MOV}})) \extchoice \text{getout?m} \then \text{\texttt{RESPONDM}}) \\
+  \text{\texttt{SENDR1}} = &((\text{getout!m} \then (\text{prio} \then \text{\texttt{ROBOT\_REACH}})) \extchoice \text{getout?m} \then \text{\texttt{RESPONDR}}) \\
   \text{\texttt{SENDM2}} = &((\text{getout!m} \then (\text{nprio} \then \text{\texttt{ROBOT\_MOV}})) \extchoice \text{getout?m} \then \text{\texttt{RESPONDM}}) \\
   \text{\texttt{SENDR2}} = &((\text{getout!m} \then (\text{nprio} \then \text{\texttt{ROBOT\_REACH}})) \extchoice \text{getout?m} \then \text{\texttt{RESPONDR}}) \\ 
   \text{\texttt{SYSTEM}} = &(\text{\texttt{ROBOT\_MOV1}} | \{ \text{getout}, \text{see}, \text{reach}, \text{prio}, \text{nprio} \text{pickup} \text{dropbox} \} | \text{\texttt{ROBOT\_MOV2}}) 
@@ -82,9 +82,9 @@ ROBOT_CARRY1 = ((getout?1 -> ROBOT_CARRY1) [] dropbox -> ROBOT_MOV1)
 RESPONDM1 = (prio -> ROBOT_MOV1 [] nprio -> ROBOT_MOV1)
 RESPONDR1 = (prio -> ROBOT_MOV1 [] nprio -> ROBOT_REACH1)
 
-SENDM1 = ((getout!2 -> (nprio -> ROBOT_MOV1)) 
+SENDM1 = ((getout!2 -> (prio -> ROBOT_MOV1)) 
           [] getout?1 -> RESPONDM1)
-SENDR1 = ((getout!2 -> (nprio -> ROBOT_REACH1)) 
+SENDR1 = ((getout!2 -> (prio -> ROBOT_REACH1)) 
           [] getout?1 -> RESPONDR1)
 
 
@@ -126,7 +126,7 @@ After verifying the \texttt{GETOUT} protocol, we implemented the sending, as sho
 pub fn observe(&mut self, grid: &mut Grid) {
   // ... other code ...
 
-  if  self.knowledge_base.get(&self.target_gold).team_robots > 2 {
+  if  self.knowledge_base.get(&self.target_gold).has_team_robot() {
     let (a, b) = self.consensus_pair.unwrap();
     let filtered = self.knowledge_base.get(&self.target_gold).robot_ids
                     .iter()
@@ -161,10 +161,6 @@ fn message_receiver(&mut self, received_message: Option<Message>) {
               // and sender has higher priority, reset and move out
               self.reset();
               self.planned_actions.clear();
-              self.plan_actions_to_move_to(self.deposit_box_coord);
-            }else {
-              // If the message coord does not match own target, 
-              // just move out of the area
               self.plan_actions_to_move_to(self.deposit_box_coord);
             }
           },

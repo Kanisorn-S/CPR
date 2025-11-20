@@ -8,8 +8,8 @@ ROBOT_CARRY1 = ((getout?1 -> ROBOT_CARRY1) [] dropbox -> ROBOT_MOV1)
 RESPONDM1 = (prio -> ROBOT_MOV1 [] nprio -> ROBOT_MOV1)
 RESPONDR1 = (prio -> ROBOT_MOV1 [] nprio -> ROBOT_REACH1)
 
-SENDM1 = ((getout!2 -> (nprio -> ROBOT_MOV1)) [] getout?1 -> RESPONDM1)
-SENDR1 = ((getout!2 -> (nprio -> ROBOT_REACH1)) [] getout?1 -> RESPONDR1)
+SENDM1 = ((getout!2 -> (prio -> ROBOT_MOV1)) [] getout?1 -> RESPONDM1)
+SENDR1 = ((getout!2 -> (prio -> ROBOT_REACH1)) [] getout?1 -> RESPONDR1)
 
 
 ROBOT_MOV2 = ((getout?2 -> RESPONDM1 [] reach -> ROBOT_REACH2) [] see?2 -> SENDM2)
