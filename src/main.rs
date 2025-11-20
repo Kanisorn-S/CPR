@@ -42,5 +42,4 @@ fn main() {
     }
     println!("{}", "Final Grid".bold());
     world.print_grid();
-    world.print_robots();
 }
