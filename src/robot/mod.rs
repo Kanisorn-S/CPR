@@ -876,7 +876,6 @@ impl Robot {
                 self.received_begin = false;
                 self.consensus_coord = self.target_gold;
                 println!("Robot {} has Consensus pair: {:?}", self.team.style(self.id.to_string()), self.consensus_pair);
-<<<<<<< HEAD
                 // Self is chosen as designated pair
                 // if (self.id == a || self.id == b) && self.planned_actions.is_empty() && self.target_gold.is_some() {
                 if (self.id == a || self.id == b) && self.target_gold.is_some() {
@@ -886,10 +885,6 @@ impl Robot {
                     } else {
                         self.combined_pair_id = Some(b as u32);
                     }
-=======
-                // self.set_consensus(MessageContent::Coord(Some(self.target_gold.unwrap()), Some(0)));
-                if (self.id == a || self.id == b) && self.planned_actions.is_empty() && self.target_gold.is_some() {
->>>>>>> main
                     if self.id == a {
                         self.pre_pickup_pair_id = Some(b);
                     } else {

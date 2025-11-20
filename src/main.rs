@@ -43,9 +43,4 @@ fn main() {
     println!("{}", "Final Grid".bold());
     world.print_grid();
     world.print_robots();
-    println!("Total {} Started: {}", "GOLD".yellow().bold(), world.total_gold_amount.to_string().yellow().bold());
-    println!("{} score: {}", "BLU".blue().bold(), world.get_blue_score().to_string().blue().bold());
-    println!("{} score: {}", "RED".red().bold(), world.get_red_score().to_string().red().bold());
-    let total_score = world.get_blue_score() + world.get_red_score();
-    println!("Total score: {}", total_score.to_string().bold().yellow());
 }
