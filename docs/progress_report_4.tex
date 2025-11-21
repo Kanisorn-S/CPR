@@ -155,7 +155,7 @@ fn message_receiver(&mut self, received_message: Option<Message>) {
         // If robot is a designated robot, check the message content
         match message.message_content {
           MessageContent::Coord(Some(get_out_coord), _) => {
-            if self.current_coord == get_out_coord 
+            if self.target_gold == get_out_coord 
                 && message.id > combined_pair_id {
               // If the message coord matches own target 
               // and sender has higher priority, reset and move out
